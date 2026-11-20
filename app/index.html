@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b5fa5">
+<title>Constat dégâts des eaux</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+/* VOICE: calme, net, rassurant — un formulaire officiel qu'on remplit sans stress
+   IDEA: le constat papier IRSI, recto bleu ciel / rose des parties A et B
+   PICTURE: le questionnaire lui-même, une question à la fois, barre de progression en goutte
+   COLOUR and TYPE: bleu eau #0b5fa5 dominant, rose A #f6d3d3 / bleu B #d6ecf8, Archivo + Inter
+   LAYOUT: une colonne de 640px, barre d'actions collée en bas pour le pouce */
+:root{color-scheme:light dark;--bg:light-dark(#f4f8fb,#0a1620);--card:light-dark(#fff,#112230);--ink:light-dark(#0d1b26,#e7f0f6);--mute:light-dark(#5a6d7b,#93a8b7);--line:light-dark(#d5e1ea,#24394a);--blue:#0b5fa5;--blue2:light-dark(#e3f0fa,#13324b);--a:light-dark(#fbe3e3,#3a1f24);--aink:#c0343a;--b:light-dark(#dcf0fb,#13324b);--bink:#0b74b8}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+header{background:var(--blue);color:#fff;padding:calc(18px + env(safe-area-inset-top)) max(5vw,16px,env(safe-area-inset-right)) 22px max(5vw,16px,env(safe-area-inset-left));position:relative;overflow:hidden}
+header h1{font:800 clamp(22px,5vw,30px)/1.05 Archivo,sans-serif;margin:0 0 4px;text-wrap:balance}
+header p{margin:0;opacity:.85;font-size:14px}
+header svg{position:absolute;right:-10px;top:-6px;width:120px;opacity:.18}
+.prog{height:6px;background:rgba(255,255,255,.25);border-radius:6px;margin-top:14px;overflow:hidden}
+.prog i{display:block;height:100%;background:#fff;border-radius:6px;transition:width .3s}
+main{max-width:640px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) calc(120px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 18px}
+.step.A{border-top:6px solid var(--aink)}.step.B{border-top:6px solid var(--bink)}
+.kicker{font-size:13px;color:var(--mute);margin:0 0 2px}
+h2{font:700 22px/1.15 Archivo,sans-serif;margin:0 0 16px}
+.tag{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;font:800 15px Archivo,sans-serif;margin-right:8px;vertical-align:2px}
+.tag.A{background:var(--aink)}.tag.B{background:var(--bink)}
+.f{margin:0 0 16px}
+.f>label,.f>.lab{display:block;font-weight:600;font-size:15px;margin-bottom:6px}
+.f small{display:block;color:var(--mute);font-size:13px;margin-top:4px}
+input[type=text],input[type=email],input[type=tel],input[type=date],textarea{width:100%;font:16px Inter,sans-serif;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:48px}
+textarea{min-height:84px;resize:vertical}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid #5fb0ec;outline-offset:1px;border-color:var(--blue)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{position:relative}
+.opt input{position:absolute;opacity:0;inset:0}
+.opt span{display:flex;align-items:center;gap:8px;min-height:44px;padding:9px 14px;border:1.5px solid var(--line);border-radius:999px;background:var(--bg);font-size:15px;cursor:pointer}
+.opt input:checked+span{background:var(--blue);border-color:var(--blue);color:#fff}
+.opt input:focus-visible+span{outline:3px solid #5fb0ec}
+.sub{margin:10px 0 4px 14px;padding-left:12px;border-left:3px solid var(--blue2)}
+.quick{font:600 14px Inter;background:var(--blue2);color:var(--ink);border:0;border-radius:999px;padding:10px 14px;min-height:44px;margin-bottom:14px;cursor:pointer}
+.sig{border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;width:100%;height:170px;display:block}
+.sigbar{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}
+.link{background:none;border:0;color:var(--blue);font:600 14px Inter;padding:8px;min-height:40px;cursor:pointer}
+:root[data-theme=dark] .link,.link{color:light-dark(#0b5fa5,#7cc4f5)}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center}
+nav .in{max-width:640px;width:100%;display:flex;gap:10px}
+.btn{flex:1;min-height:52px;border-radius:12px;font:700 16px Archivo,sans-serif;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn:disabled{opacity:.5}
+.recap{display:grid;gap:10px}
+.recap section{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.recap h3{font:700 15px Archivo,sans-serif;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center}
+.recap dl{margin:0;font-size:14px}
+.recap dt{color:var(--mute);font-size:13px;margin-top:6px}.recap dd{margin:0;overflow-wrap:anywhere;font-weight:500}
+.actions{display:grid;gap:10px;margin-top:16px}
+.msg{padding:12px 14px;border-radius:10px;background:var(--blue2);font-size:14px;margin-top:12px}
+.msg.err{background:light-dark(#fde3e3,#3d1d1f)}
+.mailbox{font-size:14px;color:var(--mute);margin-top:6px;overflow-wrap:anywhere}
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 14px}
+.steps button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--mute);font:600 12px Inter;cursor:pointer;padding:0}
+.steps button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.steps button.done{color:var(--ink);background:var(--blue2)}
+.devis{margin-top:18px;padding:16px;border-radius:14px;background:var(--blue2);display:grid;gap:10px}
+.devis h3{font:700 17px/1.25 Archivo,sans-serif;margin:0}
+.devis p{margin:0;font-size:14px}
+.phgrid{display:grid;gap:12px;margin-bottom:14px}
+.ph{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.ph img{display:block;width:100%;max-height:260px;object-fit:cover;background:#000}
+.ph figcaption{display:flex;gap:6px;align-items:center;padding:8px}
+.ph figcaption input{flex:1}
+.phadd{display:grid;gap:10px}
+.phbtn{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 12px}
+@media(prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Constat DDE">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Remplissez, signez et envoyez votre constat amiable dégât des eaux (IRSI) depuis votre téléphone.">
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 100 120" aria-hidden="true"><path d="M50 4C50 4 12 52 12 78a38 38 0 0076 0C88 52 50 4 50 4z" fill="#fff"/></svg>
+  <h1>Constat dégâts des eaux</h1>
+  <p id="sub">Formulaire IRSI — 3 exemplaires (A, B, syndic) remplis automatiquement</p>
+  <div class="prog"><i id="bar"></i></div>
+</header>
+<main>
+  <div class="steps" id="dots"></div>
+  <form class="step" id="step" autocomplete="on"></form>
+</main>
+<nav><div class="in">
+  <button class="btn" id="prev" type="button">Précédent</button>
+  <button class="btn pri" id="next" type="button">Suivant</button>
+</div></nav>
+
+<script src="pdf-lib.min.js"></script>
+<script>
+{
+const CAP=window.Capacitor,NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+/* Entreprise partenaire proposée pour chiffrer les travaux */
+const PARTNER={nom:'Vitfix',mail:'vitfix.applis@gmail.com'};
+const KEY='constatDDE_v1';
+let d={};try{d=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}};
+const today=new Date().toISOString().slice(0,10);
+if(!d.le)d.le=today;
+const YN=[['oui','Oui'],['non','Non']];
+
+const party=P=>[
+ {t:'Partie '+P+' — identité',p:P,fields:[
+  {k:P+'_nom',l:'Nom et prénom',ty:'text',ac:'name'},
+  {k:P+'_adresse',l:'Adresse',ty:'area'},
+  {row:[{k:P+'_bat',l:'Bâtiment',ty:'text'},{k:P+'_etage',l:'Étage',ty:'text'}]},
+  {k:P+'_mail',l:'Mail',ty:'email'},
+  {k:P+'_tel',l:'Téléphone',ty:'tel'}]},
+ {t:'Partie '+P+' — assurance',p:P,fields:[
+  {row:[{k:P+'_assureur',l:'Assureur',ty:'text'},{k:P+'_contrat',l:'Contrat n°',ty:'text'}]},
+  {k:P+'_sinistre',l:'Sinistre n°',ty:'text',h:'Si déjà déclaré'},
+  {row:[{k:P+'_agent',l:'Agent / courtier',ty:'text'},{k:P+'_agenttel',l:'Tél. agent',ty:'tel'}]},
+  {k:P+'_agentadr',l:'Adresse assureur / agent / courtier',ty:'area'}]},
+ {t:'Partie '+P+' — situation',p:P,fields:[
+  {k:P+'_hab',l:'S’agit-il d’un local à usage d’habitation ?',ty:'radio',o:YN},
+  {k:P+'_resil',l:'La résiliation du bail a-t-elle été demandée ?',ty:'radio',o:YN},
+  {k:P+'_meuble',l:'Location meublée ou saisonnière ?',ty:'radio',o:YN},
+  {k:P+'_qual',l:'Vous êtes',ty:'radio',o:[['loc','Locataire / occupant non propriétaire'],['prop','Propriétaire / copropriétaire'],['syndic','Syndic'],['gerant','Gérant de l’immeuble']]},
+  {k:P+'_proprio',l:'Nom et coordonnées du propriétaire ou du gérant du logement',ty:'area',if:x=>x[P+'_qual']==='loc',sub:1},
+  {k:P+'_occ',l:'Propriétaire',ty:'radio',o:[['occ','Occupant'],['nonocc','Non occupant']],if:x=>x[P+'_qual']==='prop',sub:1},
+  {k:P+'_dom',l:'Avez-vous subi des dommages ?',ty:'radio',o:YN},
+  {k:P+'_domdesc',l:'Nature des dommages',ty:'text',h:'Ex. : plafond salle de bain taché, peinture cloquée',if:x=>x[P+'_dom']==='oui',sub:1}]}
+];
+
+const STEPS=[
+ {t:'Le sinistre',fields:[
+  {k:'adresse',l:'Adresse complète du lieu du sinistre',ty:'area'},
+  {k:'date',l:'Date du dégât des eaux',ty:'date'},
+  {k:'type',l:'S’agit-il',ty:'radio',o:[['maison','D’une maison particulière'],['copro','D’un immeuble en copropriété'],['locatif','D’un immeuble locatif']]},
+  {k:'neuf',l:'Immeuble construit depuis moins de 10 ans ?',ty:'radio',o:YN}]},
+ {t:'Syndic ou gérant',quick:1,fields:[
+  {k:'syndic',l:'Nom et adresse du syndic ou du gérant',ty:'area'},
+  {k:'syndictel',l:'Téléphone',ty:'tel'}]},
+ ...party('A'),...party('B'),
+ {t:'Cause du dégât des eaux',fields:[
+  {k:'rech',l:'Une recherche de fuite a-t-elle été effectuée par un artisan ou une entreprise ?',ty:'radio',o:YN},
+  {k:'rechqui',l:'Par qui ?',ty:'text',if:x=>x.rech==='oui',sub:1},
+  {k:'ident',l:'La cause est-elle identifiée ?',ty:'radio',o:YN},
+  {k:'repar',l:'La cause est-elle réparée ?',ty:'radio',o:YN},
+  {k:'orig',l:'L’origine est située chez',ty:'radio',o:[['A','A'],['B','B'],['ailleurs','Ailleurs']]},
+  {k:'origprec',l:'Préciser',ty:'text',if:x=>x.orig==='ailleurs',sub:1}]},
+ {t:'Nature de la fuite',fields:[
+  {k:'nat',l:'Il s’agit de (une ou plusieurs réponses)',ty:'check',o:[['canal','Fuite sur canalisation'],['appareil','Fuite ou débordement d’appareil à effet d’eau (évier, lavabo, machine à laver, chaudière, cumulus…)'],['cheneau','Fuite ou débordement de chéneaux ou gouttières'],['infil','Infiltrations'],['gel','Gel'],['autre','Autre cause']]},
+  {k:'canal1',l:'Canalisation',ty:'radio',o:[['commune','Commune'],['privative','Privative']],if:x=>has(x,'nat','canal'),sub:1},
+  {k:'canal2',l:'Type',ty:'radio',o:[['alim','Alimentation'],['evac','Évacuation']],if:x=>has(x,'nat','canal'),sub:1},
+  {k:'canal3',l:'Accès',ty:'radio',o:[['acc','Accessible'],['nonacc','Non accessible']],if:x=>has(x,'nat','canal'),sub:1},
+  {k:'infil',l:'Infiltrations par',ty:'check',o:[['toiture','Toiture'],['terrasse','Terrasse'],['facade','Façade'],['fenetre','Fenêtre ou porte-fenêtre'],['joint','Joint d’étanchéité (sanitaire ou carrelage)']],if:x=>has(x,'nat','infil'),sub:1},
+  {k:'autretxt',l:'Laquelle ?',ty:'text',if:x=>has(x,'nat','autre'),sub:1}]},
+ {t:'Responsabilité d’un tiers',fields:[
+  {k:'entr',l:'Un entrepreneur, un installateur ou un vendeur vous paraît-il être à l’origine du sinistre ?',ty:'radio',o:YN},
+  {k:'entrpq',l:'Préciser pourquoi',ty:'area',if:x=>x.entr==='oui',sub:1},
+  {k:'entrnom',l:'Nom et adresse',ty:'area',if:x=>x.entr==='oui',sub:1}]},
+ {t:'Signatures',sign:1,fields:[
+  {row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}]},
+ {t:'Photos du sinistre',photos:1,fields:[]},
+ {t:'Récapitulatif et envoi',recap:1,fields:[]}
+];
+
+/* ---------- Photos : stockées sur le téléphone (IndexedDB), ajoutées en annexe du PDF ---------- */
+const MAXP=12;
+let photos=[];const purls=new Map();
+const IDB=(()=>{let p;
+ const db=()=>p||(p=new Promise((res,rej)=>{const r=indexedDB.open('constatDDE',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
+ const tx=async(m,f)=>{const x=await db();return new Promise((res,rej)=>{const t=x.transaction('photos',m),r=f(t.objectStore('photos'));t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error)})};
+ return{all:()=>tx('readonly',s=>s.getAll()),put:o=>tx('readwrite',s=>s.put(o)),del:id=>tx('readwrite',s=>s.delete(id)),clear:()=>tx('readwrite',s=>s.clear())};
+})();
+const purl=p=>{if(!purls.has(p.id))purls.set(p.id,URL.createObjectURL(p.blob));return purls.get(p.id)};
+async function shrink(file){
+ let src;
+ try{src=await createImageBitmap(file,{imageOrientation:'from-image'})}
+ catch(e){src=await new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=()=>rej(new Error('format d’image non pris en charge'));im.src=URL.createObjectURL(file)})}
+ const sc=Math.min(1,1600/Math.max(src.width,src.height)),w=Math.round(src.width*sc),h=Math.round(src.height*sc);
+ const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.drawImage(src,0,0,w,h);
+ const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.8));if(!blob)throw new Error('conversion impossible');
+ return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),blob,w,h,cap:'',t:Date.now()};
+}
+function photosHTML(){
+ return `<p class="kicker" style="margin:-8px 0 14px">Facultatif. Les photos sont ajoutées à la fin du PDF, 2 par page (${MAXP} au maximum).</p>
+ <div class="phgrid">${photos.map((p,i)=>`<figure class="ph"><img src="${purl(p)}" alt="Photo ${i+1}"><figcaption><input type="text" data-cap="${p.id}" value="${esc(p.cap)}" placeholder="Légende (ex. : plafond cuisine)" aria-label="Légende de la photo ${i+1}"><button type="button" class="link" data-delph="${p.id}">Supprimer</button></figcaption></figure>`).join('')}</div>
+ ${photos.length<MAXP?`<div class="phadd"><label class="btn pri phbtn">Prendre une photo<input type="file" accept="image/*" capture="environment" data-addph hidden></label><label class="btn phbtn">Choisir dans la galerie<input type="file" accept="image/*" multiple data-addph hidden></label></div>`:`<p class="msg">Nombre maximum de photos atteint (${MAXP}).</p>`}
+ <div id="phmsg"></div>`;
+}
+function keepScroll(){const y=window.scrollY;render();window.scrollTo({top:y})}
+document.addEventListener('change',async e=>{
+ if(!e.target.matches('[data-addph]'))return;
+ const files=[...e.target.files].slice(0,MAXP-photos.length);let err='';
+ for(const f of files){try{const p=await shrink(f);photos.push(p);try{await IDB.put(p)}catch(x){}}catch(x){err=x.message||String(x)}}
+ keepScroll();
+ if(err)$('#phmsg').innerHTML=`<div class="msg err">Une photo n’a pas pu être ajoutée : ${esc(err)}</div>`;
+});
+document.addEventListener('input',e=>{const id=e.target.dataset.cap;if(!id)return;const p=photos.find(x=>x.id===id);if(p){p.cap=e.target.value;IDB.put(p).catch(()=>{})}});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-delph]');if(!b)return;const id=b.dataset.delph;
+ photos=photos.filter(x=>x.id!==id);if(purls.has(id)){URL.revokeObjectURL(purls.get(id));purls.delete(id)}IDB.del(id).catch(()=>{});keepScroll()});
+function has(x,k,v){return Array.isArray(x[k])&&x[k].includes(v)}
+
+let cur=Math.min(+(d._step||0),STEPS.length-1);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function fieldHTML(f){
+ if(f.row)return `<div class="row">${f.row.map(fieldHTML).join('')}</div>`;
+ if(f.if&&!f.if(d))return '';
+ const id='f_'+f.k,v=d[f.k];
+ let inner='';
+ if(f.ty==='area')inner=`<textarea id="${id}" data-k="${f.k}">${esc(v)}</textarea>`;
+ else if(f.ty==='radio'||f.ty==='check')inner=`<div class="opts" role="group">${f.o.map(([val,lab])=>{const on=f.ty==='radio'?v===val:has(d,f.k,val);return `<label class="opt"><input type="${f.ty==='radio'?'radio':'checkbox'}" name="${f.k}" value="${val}" data-k="${f.k}" data-ty="${f.ty}" ${on?'checked':''}><span>${lab}</span></label>`}).join('')}</div>`;
+ else inner=`<input id="${id}" data-k="${f.k}" type="${f.ty}" value="${esc(v)}" ${f.ty==='email'?'inputmode="email"':''}${f.ty==='tel'?'inputmode="tel"':''}${f.ac?` autocomplete="${f.ac}"`:''}>`;
+ const lab=(f.ty==='radio'||f.ty==='check')?`<span class="lab">${f.l}</span>`:`<label for="${id}">${f.l}</label>`;
+ return `<div class="f${f.sub?' sub':''}">${lab}${inner}${f.h?`<small>${f.h}</small>`:''}</div>`;
+}
+
+function render(){
+ const s=STEPS[cur];d._step=cur;save();
+ $('#bar').style.width=((cur+1)/STEPS.length*100)+'%';
+ $('#dots').innerHTML=STEPS.map((x,i)=>`<button type="button" data-go="${i}" class="${i===cur?'on':i<cur?'done':''}" aria-label="Étape ${i+1} : ${esc(x.t)}">${i+1}</button>`).join('');
+ const st=$('#step');st.className='step'+(s.p?' '+s.p:'');
+ let h=`<p class="kicker">Étape ${cur+1} sur ${STEPS.length}</p><h2>${s.p?`<span class="tag ${s.p}">${s.p}</span>`:''}${esc(s.t.replace(/^Partie [AB] — /,s.p?'':'$&'))}</h2>`;
+ if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p))h+=`<p class="kicker" style="margin:-8px 0 14px">${s.p==='A'?'Partie A : en principe l’occupant du local d’où provient l’eau, ou le premier signataire.':'Partie B : l’autre personne concernée (voisin, propriétaire…). Laissez vide si elle n’existe pas.'}</p>`;
+ if(s.quick){let m=null;try{m=JSON.parse(localStorage.getItem('constatDDE_syndic')||'null')}catch(e){}h+=m?`<button type="button" class="quick" id="syn-use">Reprendre : ${esc(m.syndic.split('\n')[0])}</button> <button type="button" class="link" id="syn-save">Mémoriser ce syndic</button>`:`<button type="button" class="link" id="syn-save">Mémoriser ce syndic pour les prochains constats</button>`}
+ h+=s.fields.map(fieldHTML).join('');
+ if(s.sign)h+=['A','B'].map(P=>`<div class="f"><span class="lab"><span class="tag ${P}">${P}</span>Signature partie ${P}</span><canvas class="sig" id="sig${P}" data-p="${P}"></canvas><div class="sigbar"><span>Signez avec le doigt</span><button type="button" class="link" data-clear="${P}">Effacer</button></div></div>`).join('');
+ if(s.photos)h+=photosHTML();
+ if(s.recap)h+=recapHTML();
+ st.innerHTML=h;
+ $('#prev').disabled=cur===0;
+ $('#next').textContent=cur===STEPS.length-1?'Nouveau constat':cur===STEPS.length-2?'Voir le récapitulatif':'Suivant';
+ if(s.sign)['A','B'].forEach(setupSig);
+ if(s.recap)bindRecap();
+ window.scrollTo({top:0});
+}
+
+const FLAT=STEPS.flatMap((s,i)=>s.fields.flatMap(f=>f.row||[f]).map(f=>({...f,step:i})));
+function show(f){
+ const v=d[f.k];if(v==null||v===''||(Array.isArray(v)&&!v.length))return null;
+ if(f.o){const arr=[].concat(v);return arr.map(x=>(f.o.find(o=>o[0]===x)||[,x])[1]).join(', ')}
+ if(f.ty==='date')return fr(v);return v;
+}
+function fr(v){if(!v)return'';const[y,m,dd]=v.split('-');return `${dd}/${m}/${y}`}
+function recapHTML(){
+ const groups=STEPS.slice(0,-1).map((s,i)=>{
+  const rows=FLAT.filter(f=>f.step===i&&(!f.if||f.if(d))).map(f=>[f.l,show(f)]).filter(r=>r[1]);
+  if(s.sign)rows.push(['Signature A',d.sigA?'Oui':'—'],['Signature B',d.sigB?'Oui':'—']);
+  if(s.photos&&photos.length)rows.push(['Photos',photos.length+' photo'+(photos.length>1?'s':'')+' en annexe du PDF']);
+  return `<section><h3>${esc(s.t)}<button type="button" class="link" data-go="${i}">Modifier</button></h3>${rows.length?`<dl>${rows.map(r=>`<dt>${esc(r[0].replace(/ \?$/,''))}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl>`:'<small style="color:var(--mute)">Non renseigné</small>'}</section>`}).join('');
+ return `<div class="recap">${groups}</div>
+ <div class="actions">
+  <div class="f" style="margin:6px 0 0"><label for="mailto">Envoyer à (mail)</label><input id="mailto" type="email" inputmode="email" data-k="mailto" value="${esc(d.mailto||'')}" placeholder="assureur, syndic…"></div>
+  <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
+  <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
+  <p class="mailbox" id="mailinfo">${NATIVE?'Choisissez Gmail ou Outlook dans la liste : le PDF (3 exemplaires A, B, syndic) est joint automatiquement.':'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
+ </div>${devisHTML()}<div id="out"></div>`;
+}
+function devisHTML(){
+ const ps=['A','B'].filter(P=>d[P+'_dom']==='oui');if(!ps.length)return '';
+ return `<section class="devis"><h3>Besoin d’une entreprise pour chiffrer les travaux ?</h3>
+ <p>${esc(PARTNER.nom)}, entreprise partenaire, peut établir un devis de remise en état des dommages. La demande part par mail avec le constat${photos.length?' et les photos':''} en pièce jointe ; vous la relisez et l’envoyez vous-même.</p>
+ ${ps.map(P=>`<button type="button" class="btn" data-devis="${P}">Demander un devis${ps.length>1||d[P+'_nom']?' pour '+esc(clean1(d[P+'_nom'])||'la partie '+P):''}</button>`).join('')}</section>`;
+}
+
+document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;
+ if(e.target.dataset.ty==='check'){const a=new Set(d[k]||[]);e.target.checked?a.add(e.target.value):a.delete(e.target.value);d[k]=[...a]}
+ else d[k]=e.target.value;
+ save();
+ if(e.target.dataset.ty){const y=window.scrollY;const focusK=e.target.name,val=e.target.value;render();window.scrollTo({top:y});const el=document.querySelector(`input[name="${focusK}"][value="${val}"]`);el&&el.focus({preventScroll:true})}
+});
+document.addEventListener('click',e=>{
+ const g=e.target.closest('[data-go]');if(g){cur=+g.dataset.go;render();return}
+ const c=e.target.closest('[data-clear]');if(c){delete d['sig'+c.dataset.clear];save();setupSig(c.dataset.clear);return}
+ if(e.target.id==='syn-save'){try{localStorage.setItem('constatDDE_syndic',JSON.stringify({syndic:d.syndic||'',syndictel:d.syndictel||''}))}catch(x){}render();return}
+ if(e.target.id==='syn-use'){try{const m=JSON.parse(localStorage.getItem('constatDDE_syndic'));d.syndic=m.syndic;d.syndictel=m.syndictel}catch(x){}save();render()}
+});
+$('#prev').onclick=()=>{if(cur>0){cur--;render()}};
+$('#next').onclick=()=>{
+ if(cur===STEPS.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses et commencer un nouveau constat ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;$('#reset').onclick=()=>{d={le:today};save();photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{});cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
+ cur++;render()};
+$('#step').addEventListener('submit',e=>e.preventDefault());
+
+function setupSig(P){
+ const cv=document.getElementById('sig'+P);if(!cv)return;
+ const r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1;
+ cv.width=r.width*dpr;cv.height=r.height*dpr;
+ const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);ctx.lineWidth=2.4;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#0a2a6b';
+ ctx.clearRect(0,0,r.width,r.height);
+ if(d['sig'+P]){const im=new Image();im.onload=()=>ctx.drawImage(im,0,0,r.width,r.height);im.src=d['sig'+P]}
+ let drawing=false,last=null;
+ const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top]};
+ cv.onpointerdown=e=>{drawing=true;last=pos(e);cv.setPointerCapture(e.pointerId);ctx.beginPath();ctx.arc(last[0],last[1],1.1,0,7);ctx.fillStyle='#0a2a6b';ctx.fill()};
+ cv.onpointermove=e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(...last);ctx.lineTo(...p);ctx.stroke();last=p};
+ const end=()=>{if(!drawing)return;drawing=false;d['sig'+P]=trim(cv);save()};
+ cv.onpointerup=end;cv.onpointercancel=end;
+}
+function trim(cv){
+ const ctx=cv.getContext('2d'),{width:w,height:h}=cv,px=ctx.getImageData(0,0,w,h).data;
+ let x0=w,y0=h,x1=0,y1=0;
+ for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(px[(y*w+x)*4+3]>0){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
+ if(x1<x0)return undefined;
+ const pad=6;x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(w,x1+pad);y1=Math.min(h,y1+pad);
+ const o=document.createElement('canvas');o.width=x1-x0;o.height=y1-y0;o.getContext('2d').drawImage(cv,x0,y0,o.width,o.height,0,0,o.width,o.height);
+ // full canvas kept for redisplay; trimmed stored separately
+ d['sigt'+cv.dataset.p]=o.toDataURL('image/png');
+ return cv.toDataURL('image/png');
+}
+
+/* ---------- PDF ---------- */
+const H=841.89,INK=()=>PDFLib.rgb(0.04,0.16,0.45);
+const L={ // [x1,x2,underlineTop]
+ adresse:[[315.6,553.7,96.4],[162.2,553.7,109.1]],syndic:[[207.4,553.7,154.4],[43,436.6,167.6]],syndictel:[[459.9,553.9,167.6]],
+ nom:[[106,278.3,224.9]],adr:[[71.3,278.3,237.1],[37.6,176.7,249.3]],bat:[[197.8,217.4,249.3]],etage:[[245.3,277.9,249.3]],
+ mail:[[56.7,278.3,261.6],[37.6,155.9,273.8]],tel:[[176.1,278.3,273.8]],assureur:[[74.2,176.7,286.1]],contrat:[[220.6,278.3,286.1]],
+ sinistre:[[75.5,278.3,310.5]],agent:[[93.6,169.1,322.1]],agenttel:[[191,278.3,322.1]],agentadr:[[169.1,278.3,334.4],[37.6,278.3,346.6]],
+ proprio:[[108.5,278.3,454],[108.5,278.3,467.3],[108.5,278.3,480.6]],domdesc:[[37.6,278.3,570.1]],
+ rechqui:[[407.5,548.5,624.3]],origprec:[[342,548.5,644.8]],autretxt:[[136.8,548.5,716.3]],entrpq:[[502.8,548.5,727],[37.6,548.5,737.4]],entrnom:[[127,548.5,747.2]],faita:[[68.4,253.3,790]]
+};
+const BX={type:{maison:[202.1,118.2],copro:[312.6,118.2],locatif:[441.9,118.2]},neuf:{oui:[255.4,133.5],non:[285.9,133.5]},
+ hab:{oui:[210.9,371.3],non:[240.5,371.3]},resil:{oui:[226.1,382.8],non:[255.7,382.8]},meuble:{oui:[226.1,394.2],non:[255.7,394.2]},
+ qual:{loc:[98.7,415.9],prop:[98.7,488.9],syndic:[98.7,516.5],gerant:[152.2,516.5]},occ:{occ:[109.3,499.4],nonocc:[165.5,499.4]},dom:{oui:[180.9,551.8],non:[210.8,551.8]},
+ rech:{non:[315.7,618.8],oui:[348.9,618.8]},ident:{oui:[135.3,628.9],non:[165.2,628.9]},repar:{oui:[329.6,628.9],non:[359.5,628.9]},
+ orig:{A:[213.2,638.5],B:[238.3,638.5],ailleurs:[263.2,638.5]},
+ nat:{canal:[37.7,658.9],appareil:[37.7,669],cheneau:[37.7,679.1],infil:[37.7,689.3],gel:[37.7,699.4],autre:[37.7,709.5]},
+ canal1:{commune:[172.5,658.9],privative:[227.6,658.9]},canal2:{alim:[283.4,658.9],evac:[345.9,658.9]},canal3:{acc:[411.4,658.9],nonacc:[467.9,658.9]},
+ infil:{toiture:[114.7,689.8],terrasse:[155.9,689.8],facade:[203.9,689.8],fenetre:[246.5,689.8],joint:[350.6,689.8]},entr:{non:[371.4,720.8],oui:[404.6,720.8]}};
+
+let tpl=null;
+async function getTpl(){if(!tpl){const r=await fetch('constat.pdf');if(!r.ok)throw new Error('modèle PDF introuvable');tpl=await r.arrayBuffer()}return tpl}
+
+async function buildPDF(){
+ const {PDFDocument,StandardFonts,rgb}=PDFLib;
+ const doc=await PDFDocument.load(await getTpl());
+ const font=await doc.embedFont(StandardFonts.Helvetica);
+ const clean=s=>[...String(s||'')].map(ch=>{if(ch==='\n')return ' ';try{font.encodeText(ch);return ch}catch(e){return ({'œ':'oe','Œ':'OE','–':'-','—':'-'}[ch]||'')}}).join('').replace(/\s+/g,' ').trim();
+ const sigs={};for(const P of['A','B']){const u=d['sigt'+P];if(u&&d['sig'+P]){sigs[P]=await doc.embedPng(u)}}
+ const pages=doc.getPages();
+ for(const pg of pages){
+  const txt=(lines,str,dx=0)=>{
+   let s=clean(str);if(!s)return;
+   for(let i=0;i<lines.length;i++){
+    const[x1,x2,top]=lines[i],w=x2-x1-3,last=i===lines.length-1;let size=8.5,part=s;
+    if(font.widthOfTextAtSize(s,size)>w){
+     if(last){while(size>5&&font.widthOfTextAtSize(s,size)>w)size-=.25;while(font.widthOfTextAtSize(part,size)>w)part=part.slice(0,-1)}
+     else{const words=s.split(' ');part='';for(const wd of words){const t=part?part+' '+wd:wd;if(font.widthOfTextAtSize(t,size)>w)break;part=t}if(!part){part=s;while(font.widthOfTextAtSize(part,size)>w)part=part.slice(0,-1)}}
+    }
+    pg.drawText(part,{x:x1+dx+2,y:H-top+2,size,font,color:INK()});
+    s=s.slice(part.length).trim();if(!s)break;
+   }};
+  const box=(grp,val,dx=0)=>{const vals=[].concat(val||[]);for(const v of vals){const b=BX[grp]&&BX[grp][v];if(!b)continue;const x=b[0]+dx,y=H-b[1]-6.8;
+   pg.drawLine({start:{x:x+1.2,y:y+1.2},end:{x:x+5.6,y:y+5.6},thickness:1.2,color:INK()});pg.drawLine({start:{x:x+1.2,y:y+5.6},end:{x:x+5.6,y:y+1.2},thickness:1.2,color:INK()})}};
+  txt(L.adresse,d.adresse);txt(L.syndic,d.syndic);txt(L.syndictel,d.syndictel);
+  if(d.date){const[y,m,dd]=d.date.split('-');[[93.2,105.7,dd],[105.7,118.2,m],[118.2,143.3,y]].forEach(([a,b,t])=>{const w=font.widthOfTextAtSize(t,7.5);pg.drawText(t,{x:(a+b)/2-w/2,y:H-115.6,size:7.5,font,color:INK()})})}
+  box('type',d.type);box('neuf',d.neuf);
+  for(const[P,dxL,dxB]of[['A',0,0],['B',270.5,270.6]]){
+   const g=k=>d[P+'_'+k];
+   txt(L.nom,g('nom'),dxL);txt(L.adr,g('adresse'),dxL);txt(L.bat,g('bat'),dxL);txt(L.etage,g('etage'),dxL);txt(L.mail,g('mail'),dxL);txt(L.tel,g('tel'),dxL);
+   txt(L.assureur,g('assureur'),dxL);txt(L.contrat,g('contrat'),dxL);txt(L.sinistre,g('sinistre'),dxL);txt(L.agent,g('agent'),dxL);txt(L.agenttel,g('agenttel'),dxL);txt(L.agentadr,g('agentadr'),dxL);
+   box('hab',g('hab'),dxB);box('resil',g('resil'),dxB);box('meuble',g('meuble'),dxB);box('qual',g('qual'),dxB);box('dom',g('dom'),dxB);
+   if(g('qual')==='loc')txt(L.proprio,g('proprio'),dxL);
+   if(g('qual')==='prop')box('occ',g('occ'),dxB);
+   if(g('dom')==='oui')txt(L.domdesc,g('domdesc'),dxL);
+  }
+  box('rech',d.rech);if(d.rech==='oui')txt(L.rechqui,d.rechqui);
+  box('ident',d.ident);box('repar',d.repar);box('orig',d.orig);if(d.orig==='ailleurs')txt(L.origprec,d.origprec);
+  box('nat',d.nat);
+  if(has(d,'nat','canal')){box('canal1',d.canal1);box('canal2',d.canal2);box('canal3',d.canal3)}
+  if(has(d,'nat','infil'))box('infil',d.infil);
+  if(has(d,'nat','autre'))txt(L.autretxt,d.autretxt);
+  box('entr',d.entr);if(d.entr==='oui'){txt(L.entrpq,d.entrpq);txt(L.entrnom,d.entrnom)}
+  txt(L.faita,d.faita);
+  if(d.le){pg.drawRectangle({x:53,y:H-814.5,width:66,height:13,color:rgb(1,1,1)});pg.drawText(fr(d.le),{x:56,y:H-810.5,size:8.5,font,color:INK()})}
+  for(const[P,x0]of[['A',272],['B',418]]){const im=sigs[P];if(!im)continue;const bw=128,bh=28,sc=Math.min(bw/im.width,bh/im.height);const w=im.width*sc,h=im.height*sc;
+   pg.drawImage(im,{x:x0+(bw-w)/2,y:H-819+(bh-h)/2,width:w,height:h})}
+ }
+ if(photos.length){
+  const bold=await doc.embedFont(StandardFonts.HelveticaBold),W=595.28,M=40,bw=W-2*M,bh=340;
+  const fit=(s,size,w,f=font)=>{if(f.widthOfTextAtSize(s,size)<=w)return s;while(s&&f.widthOfTextAtSize(s+'...',size)>w)s=s.slice(0,-1);return s+'...'};
+  const head=clean(`Annexe photos - constat dégât des eaux du ${fr(d.date)||'...'}`),sub=clean(d.adresse);
+  for(let i=0;i<photos.length;i+=2){
+   const pg=doc.addPage([W,H]);
+   pg.drawText(fit(head,12,bw,bold),{x:M,y:H-50,size:12,font:bold,color:INK()});
+   if(sub)pg.drawText(fit(sub,8.5,bw),{x:M,y:H-64,size:8.5,font,color:INK()});
+   for(let j=0;j<2&&i+j<photos.length;j++){
+    const p=photos[i+j],im=await doc.embedJpg(new Uint8Array(await p.blob.arrayBuffer()));
+    const top=H-80-j*375,sc=Math.min(bw/im.width,bh/im.height),w=im.width*sc,h=im.height*sc;
+    pg.drawImage(im,{x:M+(bw-w)/2,y:top-bh+(bh-h)/2,width:w,height:h});
+    pg.drawText(fit(clean(`Photo ${i+j+1}/${photos.length}${p.cap?' - '+p.cap:''}`),9,bw),{x:M,y:top-bh-14,size:9,font,color:INK()});
+   }
+  }
+ }
+ doc.setTitle('Constat amiable dégât des eaux');doc.setAuthor('');
+ doc.setCreator('Constat dégâts des eaux - Vitfix');doc.setProducer('Constat dégâts des eaux - Vitfix');
+ return await doc.save();
+}
+
+function fname(){const n=(d.A_nom||'').trim().split(/\s+/).pop()||'';return `Constat_DDE_${(d.date||today)}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`}
+function mailParts(){
+ const subj=`Constat amiable dégât des eaux — ${d.adresse?clean1(d.adresse):''} — ${fr(d.date)}`;
+ const body=`Bonjour,\n\nVeuillez trouver ci-joint le constat amiable dégât des eaux du ${fr(d.date)||'…'} concernant ${clean1(d.adresse)||'…'}.\n\nPartie A : ${d.A_nom||'…'}${d.A_assureur?' (assureur : '+d.A_assureur+')':''}\nPartie B : ${d.B_nom||'…'}${d.B_assureur?' (assureur : '+d.B_assureur+')':''}${photos.length?`\n\n${photos.length} photo${photos.length>1?'s':''} du sinistre en annexe du PDF.`:''}\n\nCordialement,`;
+ return {subj,body,to:(d.mailto||'').trim()};
+}
+/* Demande de devis à l'entreprise partenaire, pour une partie qui a subi des dommages */
+function devisParts(P){
+ const g=k=>clean1(d[P+'_'+k]);
+ const adr=[g('adresse')||clean1(d.adresse),g('bat')&&'bât. '+g('bat'),g('etage')&&'étage '+g('etage')].filter(Boolean).join(', ');
+ const body=[`Bonjour,`,``,
+  `Suite à un dégât des eaux${d.date?' survenu le '+fr(d.date):''}, je souhaite un devis pour la remise en état des dommages.`,``,
+  `Nom : ${g('nom')||'…'}`,`Adresse : ${adr||'…'}`,`Téléphone : ${g('tel')||'…'}`,`Mail : ${g('mail')||'…'}`,
+  `Dommages : ${g('domdesc')||'non précisés'}`,
+  `Assureur : ${g('assureur')||'…'}${g('sinistre')?' (sinistre n° '+g('sinistre')+')':''}`,``,
+  `Le constat amiable${photos.length?` (avec ${photos.length} photo${photos.length>1?'s':''} en annexe)`:''} est en pièce jointe.`,``,
+  `Cordialement,`,g('nom')].join('\n');
+ return {to:PARTNER.mail,subj:`Demande de devis — dégât des eaux — ${clean1(d.adresse)||g('nom')}`,body};
+}
+function b64(bytes){let s='';const C=0x8000;for(let i=0;i<bytes.length;i+=C)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+C));return btoa(s)}
+
+/* Natif (Capacitor) : mail avec destinataire prérempli (module EmailIntent), sinon feuille de partage ; enregistrement dans Documents/Constats */
+async function nativeSend(bytes,{to,subj,body},dialog){
+ const {Filesystem,Share,EmailIntent}=CAP.Plugins;
+ const w=await Filesystem.writeFile({path:fname(),data:b64(bytes),directory:'CACHE'});
+ if(to&&EmailIntent){await EmailIntent.send({to,subject:subj,body,files:[w.uri],title:dialog});return true}
+ await Share.share({title:subj,text:body,files:[w.uri],dialogTitle:dialog});return false;
+}
+async function nativeSave(bytes){
+ const {Filesystem}=CAP.Plugins;
+ await Filesystem.writeFile({path:'Constats/'+fname(),data:b64(bytes),directory:'DOCUMENTS',recursive:true});
+}
+const cancelled=e=>/cancel|annul|abort/i.test(String(e&&(e.message||e.errorMessage)||e));
+
+function webDownload(bytes){const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const a=document.createElement('a');a.href=url;a.download=fname();document.body.appendChild(a);a.click();a.remove();return url}
+/* Envoi commun : renvoie le message à afficher */
+async function sendMail(bytes,parts,dialog){
+ const {to,subj,body}=parts;
+ if(NATIVE){const pre=await nativeSend(bytes,parts,dialog);return pre||!to?'Mail prêt avec le PDF joint : vérifiez puis envoyez.':'Dans le mail, saisissez le destinataire : <b>'+esc(to)+'</b>'}
+ const file=new File([bytes],fname(),{type:'application/pdf'});
+ if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:subj,text:body,files:[file]});return to?'Destinataire à saisir : <b>'+esc(to)+'</b>':'Partagé.'}
+ webDownload(bytes);
+ const href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+ location.href=href;
+ return `PDF téléchargé. <a href="${href}">Ouvrir le mail prêt à envoyer</a> puis joignez-y le PDF.`;
+}
+
+function bindRecap(){
+ const out=$('#out'),say=(t,err)=>out.innerHTML=`<div class="msg${err?' err':''}">${t}</div>`;
+ const busy=async(b,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Génération…';try{await fn(await buildPDF())}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
+ $('#dl').onclick=e=>busy(e.currentTarget,async bytes=>{
+  if(NATIVE){
+   try{await nativeSave(bytes);say('PDF enregistré dans Documents › Constats : '+esc(fname())+'. Les 3 exemplaires (A, B, syndic) sont dans le même fichier.');return}
+   catch(err){await nativeSend(bytes,{...mailParts(),to:''},'Enregistrer le constat');say('Enregistrement direct impossible : choisissez où enregistrer le PDF (Fichiers, Drive…).');return}
+  }
+  const url=webDownload(bytes);say('Si le téléchargement ne démarre pas, <a href="'+url+'" target="_blank" rel="noopener">ouvrez le PDF ici</a>.');
+ });
+ $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,mailParts(),'Envoyer le constat')));
+ document.querySelectorAll('[data-devis]').forEach(b=>b.onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,devisParts(b.dataset.devis),'Demander un devis'))));
+}
+function clean1(s){return String(s||'').replace(/\s+/g,' ').trim()}
+
+render();
+IDB.all().then(a=>{photos=(a||[]).sort((x,y)=>x.t-y.t);if(photos.length&&(STEPS[cur].photos||STEPS[cur].recap))render()}).catch(()=>{});
+window.addEventListener('resize',()=>{if(STEPS[cur].sign)['A','B'].forEach(setupSig)});
+
+/* Bouton retour Android = étape précédente ; quitte l'appli à la 1re étape */
+if(NATIVE&&CAP.Plugins.App){
+ CAP.Plugins.App.addListener('backButton',()=>{if(cur>0){cur--;render()}else CAP.Plugins.App.exitApp()});
+}
+if(NATIVE&&CAP.Plugins.SplashScreen)CAP.Plugins.SplashScreen.hide();
+}
+</script>
+<script>if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});</script>
+</body>
+</html>
