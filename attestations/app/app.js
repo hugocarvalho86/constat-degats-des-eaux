@@ -19,6 +19,11 @@ const CATALOG=[
  {id:'retract',t:'Lettre de rétractation',s:'Achat en ligne ou démarchage : 14 jours pour changer d’avis'},
  {id:'resil',t:'Lettre de résiliation',s:'Box, mobile, assurance, mutuelle, salle de sport…'},
  {id:'vol',t:'Indemnisation vol retardé ou annulé',s:'Jusqu’à 600 € par passager (règlement européen 261/2004)'},
+ {id:'preavis',t:'Préavis de départ du locataire',s:'1 ou 3 mois : la date de fin calculée, le bon motif cité'},
+ {id:'travaux',t:'Demande de travaux au propriétaire',s:'Chauffage, humidité, fuite… photos jointes'},
+ {id:'energie',t:'Réclamation facture d’énergie ou d’eau',s:'Électricité, gaz, eau : estimation, erreur de relevé…'},
+ {id:'colis',t:'Colis perdu ou abîmé',s:'Réclamation au vendeur ou au transporteur'},
+ {id:'procu',t:'Procuration',s:'Autoriser un proche à retirer un colis, un document…'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -610,7 +615,7 @@ async function letterPDF(o){
  block(senderLines());y-=8;
  block(recipLines(),W/2+10);y-=10;
  line(enc(`${clean1(d.faita)||clean1(d.ville)||'…'}, le ${fr(d.le)||'…'}`),font,W/2+10);y-=8;
- if(o.rec!==false)line(enc('Lettre recommandée avec accusé de réception'),bold);
+ const head=o.head!==undefined?o.head:(o.rec===false?'':'Lettre recommandée avec accusé de réception');if(head)line(enc(head),bold);
  for(const s of wrap(enc('Objet : '+o.objet),bold,SZ,[TW]))line(s,bold);
  y-=10;line(enc('Madame, Monsieur,'));y-=6;
  for(const p of [...o.paras,SALUT]){for(const s of wrap(enc(clean1(p)),font,SZ,[TW]))line(s);y-=7}
@@ -618,6 +623,7 @@ async function letterPDF(o){
  const sx=W/2+10,s=sigImg('sig');
  if(s){const im=await pdf.embedPng(s.u),k=Math.min(170/im.width,60/im.height);pg.drawImage(im,{x:sx,y:y-im.height*k,width:im.width*k,height:im.height*k});y-=im.height*k+16}
  line(enc(fullName()),font,sx);
+ if(o.after&&o.after.length){y-=18;if(y<110)newPage();for(const a of o.after){line(enc(a),bold);y-=10}}
  if(o.pj){y-=10;for(const s2 of wrap(enc(o.pj),font,9.5,[TW]))line(s2)}
  const ph=o.ph||[];
  for(let j=0;j<ph.length;j++){
@@ -853,7 +859,281 @@ const VOL={
  build(){return letterPDF({objet:volObjet(),paras:volParas(),pj:myPh().length?'Pièces jointes : réservation, cartes d’embarquement et justificatifs.':'',ph:myPh(),annexTitle:'Pièces jointes : réservation et cartes d’embarquement',rec:false})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL};
+/* ================= Document 9 : préavis de départ du locataire ================= */
+const addMonths=(iso,n)=>{const t=isoD(iso);if(!t)return null;const y=t.getUTCFullYear(),m=t.getUTCMonth()+n,dd=t.getUTCDate();const last=new Date(Date.UTC(y,m+1,0)).getUTCDate();return isoS(new Date(Date.UTC(y,m,Math.min(dd,last))))};
+const MOTIFS=[['aucun','Pas de motif particulier'],['zone','Logement en zone tendue'],['mutation','Mutation professionnelle'],['perte','Perte d’emploi'],['nouvel','Nouvel emploi après une perte d’emploi'],['premier','Premier emploi'],['sante','État de santé justifiant un changement de domicile'],['rsa','Bénéficiaire du RSA ou de l’AAH'],['social','Attribution d’un logement social']];
+const MOTIF_TXT={zone:'le logement étant situé dans une zone d’urbanisation où il existe un déséquilibre marqué entre l’offre et la demande de logements (« zone tendue »)',mutation:'en raison de ma mutation professionnelle',perte:'en raison de la perte de mon emploi',nouvel:'en raison de l’obtention d’un nouvel emploi consécutif à une perte d’emploi',premier:'en raison de l’obtention de mon premier emploi',sante:'mon état de santé justifiant un changement de domicile',rsa:'étant bénéficiaire du revenu de solidarité active (ou de l’allocation aux adultes handicapés)',social:'en raison de l’attribution d’un logement social'};
+const ZT_URL='https://www.service-public.gouv.fr/simulateur/calcul/zones-tendues';
+function preavisCalc(){
+ const meuble=d.meuble==='oui',motif=meuble?'aucun':(d.motif||'aucun');
+ const mois=meuble||motif!=='aucun'?1:3;
+ return {meuble,motif,mois,fin:addMonths(d.recep,mois),justif:!meuble&&motif!=='aucun'&&motif!=='zone'};
+}
+function preavisInfo(){
+ const c=preavisCalc();
+ return `<div class="note"><p><b>Votre préavis : ${c.mois} mois</b>${c.meuble?' (logement meublé)':c.motif!=='aucun'?' (préavis réduit)':' (logement vide, sans motif de réduction)'}.</p>${c.fin?`<p>Si votre propriétaire reçoit la lettre le ${esc(fr(d.recep))}, le préavis se termine le <b>${esc(frLong(c.fin))}</b> à minuit. Vous payez le loyer jusqu’à cette date (sauf si un nouveau locataire arrive plus tôt avec l’accord du propriétaire).</p>`:''}${c.justif?'<p><b>Joignez un justificatif</b> de votre situation (étape 5), sinon le préavis redevient de 3 mois.</p>':''}</div>`;
+}
+const preavisHead=()=>d.mode==='main'?'Lettre remise en main propre contre émargement':d.mode==='cdj'?'Congé signifié par commissaire de justice':'Lettre recommandée avec accusé de réception';
+function preavisParas(){
+ const c=preavisCalc(),L=[];
+ L.push(`Par la présente, je vous donne congé du logement${c.meuble?' meublé':''} que je loue ${clean1(d.logadr)?'au '+clean1(d.logadr):'à l’adresse ci-dessus'}${d.baildate?`, en vertu du bail signé le ${fr(d.baildate)}`:''}.`);
+ if(c.meuble)L.push(`S’agissant d’un logement meublé, le délai de préavis est d’un mois (article 25-8 de la loi n° 89-462 du 6 juillet 1989).`);
+ else if(c.motif!=='aucun')L.push(`Conformément à l’article 15 de la loi n° 89-462 du 6 juillet 1989, mon délai de préavis est réduit à un mois, ${MOTIF_TXT[c.motif]}.${c.justif?' Vous trouverez ci-joint le justificatif correspondant.':''}`);
+ else L.push(`Conformément à l’article 15 de la loi n° 89-462 du 6 juillet 1989, le délai de préavis est de trois mois.`);
+ L.push(`Ce délai court à compter de la réception de la présente lettre${c.fin?` ; il prendra donc fin le ${fr(c.fin)} si vous la recevez le ${fr(d.recep)}`:''}.`);
+ L.push(`Je vous propose de convenir ensemble de la date de l’état des lieux de sortie et de la remise des clés. Je vous remercie de me restituer le dépôt de garantie dans les délais prévus par l’article 22 de la même loi${clean1(d.newadr)?`, à ma nouvelle adresse : ${clean1(d.newadr)}`:''}.`);
+ return L;
+}
+const PREAVIS={
+ key:'attest_preavis_v1',title:'Préavis de départ',sub:'Le locataire donne congé de son logement',
+ init:x=>{if(!x.le)x.le=today;if(!x.meuble)x.meuble='non';if(!x.motif)x.motif='aucun';if(!x.mode)x.mode='lrar';if(!x.recep)x.recep=isoS(new Date(isoD(today).getTime()+3*864e5))},
+ maxPh:3,phLabels:[],phIntro:()=>`<p>Pour un préavis réduit, joignez le <b>justificatif</b> de votre situation : attestation de l’employeur, lettre de licenciement, attestation Pôle emploi / France Travail, certificat médical, attestation CAF (RSA, AAH), attribution du logement social…</p><p>Les photos sont ajoutées à la fin du PDF (3 au maximum). Pour une zone tendue, aucun justificatif n’est demandé.</p>`,
+ phBtn:n=>n?'Ajouter une autre page':'Photographier le justificatif',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Le locataire qui veut quitter son logement doit donner congé à son propriétaire (ou à l’agence) en respectant un délai de <b>préavis</b>.</p></div>
+ <div class="note warn"><ul>
+  <li>Logement vide : <b>3 mois</b>, réduits à <b>1 mois</b> en zone tendue ou dans certains cas (mutation, perte d’emploi, nouvel emploi après une perte d’emploi, premier emploi, état de santé, RSA ou AAH, logement social). Logement meublé : <b>1 mois</b>.</li>
+  <li>Le préavis court à partir de la <b>réception</b> de la lettre par le propriétaire : lettre recommandée avec accusé de réception, acte de commissaire de justice, ou remise en main propre contre émargement.</li>
+  <li>Si plusieurs locataires ont signé le bail, chacun doit en principe donner congé.</li></ul></div>`,fields:[]},
+  {t:'Votre logement',fields:[
+   {k:'logadr',l:'Adresse du logement loué',ty:'text',h:'Avec l’étage ou le n° d’appartement.'},
+   {k:'baildate',l:'Date de signature du bail',ty:'date',h:'Facultatif.'},
+   {k:'meuble',l:'Le logement est-il loué meublé ?',ty:'radio',o:YN},
+   {k:'motif',l:'Motif de préavis réduit (1 mois)',ty:'radio',o:MOTIFS,if:x=>x.meuble!=='oui',h:`Zone tendue ? Vérifiez avec le <a href="${ZT_URL}" target="_blank" rel="noopener">simulateur officiel de service-public.fr</a>.`}],
+   post:()=>`<div id="pinfo">${preavisInfo()}</div>`},
+  {t:'Envoi de la lettre',fields:[
+   {k:'mode',l:'Comment allez-vous la remettre ?',ty:'radio',o:[['lrar','Lettre recommandée avec accusé de réception'],['main','En main propre, contre signature'],['cdj','Par commissaire de justice']]},
+   {k:'recep',l:'Date à laquelle le propriétaire la recevra (prévue)',ty:'date',h:'En recommandé, c’est la date de première présentation : comptez 2 à 3 jours après l’envoi. En main propre, c’est la date de remise.'},
+   {k:'newadr',l:'Votre future adresse',ty:'text',h:'Facultatif : pour la restitution du dépôt de garantie.'}],
+   post:()=>`<div id="pinfo2">${preavisInfo()}</div>`,live:['recep'],liveFn:()=>{const c=$('#pinfo2');if(c)c.innerHTML=preavisInfo()}},
+  {t:'Vous, le locataire',fields:SENDER()},
+  {t:'Justificatif',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatif',phCount()]],fields:[]},
+  {t:'Le propriétaire',fields:RECIP('du propriétaire ou de l’agence','Exemple : « M. Jean DUPONT » ou « Agence Immo Sud ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>preavisInfo()+letterPreview('Congé du logement'+(clean1(d.logadr)?' situé '+clean1(d.logadr):''),preavisParas()),
+ missing(){const m=letterMissing(),c=preavisCalc();if(!clean1(d.logadr))m.unshift('adresse du logement');if(c.justif&&!myPh().length)m.push('justificatif');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'mail du propriétaire ou de l’agence',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>${d.mode==='main'?'<b>En main propre :</b> imprimez la lettre en deux exemplaires et faites signer et dater le reçu en bas de page par le propriétaire ; gardez un exemplaire.':'<b>Pour que le préavis compte :</b> imprimez le PDF et envoyez-le en <b>lettre recommandée avec accusé de réception</b>. Le mail seul ne suffit pas.'}</p></div>`,
+ fname:()=>`Preavis_depart_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:'Congé du logement'+(clean1(d.logadr)?' — '+clean1(d.logadr):''),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint mon congé du logement, qui vous est également adressé ${d.mode==='main'?'en main propre':'par courrier recommandé avec accusé de réception'}.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:'Congé du logement'+(clean1(d.logadr)?' situé '+clean1(d.logadr):''),head:preavisHead(),paras:preavisParas(),after:d.mode==='main'?['Reçu en main propre le ____ / ____ / ________','Signature du bailleur :']:[],pj:myPh().length?'Pièce jointe : justificatif du préavis réduit.':'',ph:myPh(),annexTitle:'Pièce jointe : justificatif'})}
+};
+
+/* ================= Document 10 : demande de travaux au propriétaire ================= */
+const TPB=[['chauffage','Chauffage en panne ou insuffisant'],['humidite','Humidité, moisissures'],['fuite','Fuite d’eau, infiltration'],['electricite','Installation électrique dangereuse'],['fenetres','Fenêtres ou portes qui ferment mal'],['nuisibles','Nuisibles (cafards, punaises, rats…)'],['autre','Autre problème']];
+const TPB_TXT={chauffage:'le chauffage ne fonctionne pas correctement',humidite:'le logement présente de l’humidité et des moisissures',fuite:'une fuite d’eau ou une infiltration affecte le logement',electricite:'l’installation électrique présente un danger',fenetres:'les fenêtres ou les portes ne ferment pas correctement',nuisibles:'le logement est infesté de nuisibles',autre:'le logement présente un désordre'};
+function travauxParas(){
+ const L=[];
+ L.push(`Je suis locataire du logement situé ${clean1(d.logadr)||'…'}${d.baildate?`, en vertu du bail signé le ${fr(d.baildate)}`:''}.`);
+ L.push(`Depuis le ${fr(d.constat)||'…'}, ${TPB_TXT[d.pb]||'le logement présente un désordre'}${clean1(d.details)?' : '+clean1(d.details):''}.${d.signal?` Je vous l’ai déjà signalé le ${fr(d.signal)}, sans qu’une solution soit apportée.`:''}`);
+ L.push(`Je vous rappelle qu’en application de l’article 6 de la loi n° 89-462 du 6 juillet 1989, le bailleur est tenu de remettre au locataire un logement décent, répondant aux caractéristiques définies par le décret n° 2002-120 du 30 janvier 2002, d’entretenir les locaux en état de servir à l’usage prévu et d’y faire toutes les réparations, autres que locatives, nécessaires au maintien en état et à l’entretien normal des locaux loués.`);
+ L.push(`Je vous demande donc de faire réaliser les travaux nécessaires dans un délai de ${d.delai||'30'} jours à compter de la réception de la présente lettre. Je reste à votre disposition pour permettre l’accès au logement.`);
+ L.push(`À défaut, je me réserve la possibilité de saisir la commission départementale de conciliation, puis, si nécessaire, le juge des contentieux de la protection.`);
+ return L;
+}
+const TRAVAUX={
+ key:'attest_travaux_v1',title:'Demande de travaux',sub:'Lettre au propriétaire (logement décent)',
+ init:x=>{if(!x.le)x.le=today;if(!x.delai)x.delai='30'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Photographiez le problème (moisissures, fuite, radiateur, prise abîmée…). Les photos datées sont une preuve utile ; elles sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une photo':'Photographier le problème',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Le propriétaire doit louer un <b>logement décent</b> et faire les grosses réparations (article 6 de la loi du 6 juillet 1989, décret n° 2002-120). Cette lettre lui demande officiellement de faire les travaux.</p></div>
+ <div class="note warn"><ul>
+  <li><b>Ne cessez pas de payer votre loyer</b> : vous pourriez être en faute, même si le logement a des défauts.</li>
+  <li>Les petites réparations et l’entretien courant restent à la charge du locataire (réparations locatives).</li>
+  <li>Sans réponse : commission départementale de conciliation (gratuite), puis juge. Vous pouvez aussi contacter le service d’hygiène de la mairie ou l’ADIL de votre département.</li></ul></div>`,fields:[]},
+  {t:'Le problème',fields:[
+   {k:'pb',l:'Quel est le problème principal ?',ty:'radio',o:TPB},
+   {k:'details',l:'Décrivez-le',ty:'area',h:'Pièces concernées, conséquences (froid, odeurs, dégâts sur vos meubles…), autres problèmes éventuels.'},
+   {row:[{k:'constat',l:'Constaté depuis le',ty:'date'},{k:'signal',l:'Déjà signalé le',ty:'date',h:'Facultatif'}]},
+   {k:'delai',l:'Délai demandé pour les travaux',ty:'radio',o:[['15','15 jours'],['30','30 jours'],['60','2 mois']],h:'Pour un problème urgent (pas de chauffage en hiver, électricité dangereuse), un délai court est justifié.'}]},
+  {t:'Votre logement',fields:[{k:'logadr',l:'Adresse du logement loué',ty:'text'},{k:'baildate',l:'Date du bail',ty:'date',h:'Facultatif.'}]},
+  {t:'Photos',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Photos',phCount()]],fields:[]},
+  {t:'Vous, le locataire',fields:SENDER()},
+  {t:'Le propriétaire',fields:RECIP('du propriétaire ou de l’agence','Exemple : « M. Jean DUPONT » ou « Agence Immo Sud ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['details'],recapMore:()=>[],
+ recapBefore:()=>letterPreview('Demande de travaux — '+((TPB.find(x=>x[0]===d.pb)||[,'logement'])[1]).toLowerCase(),travauxParas()),
+ missing(){const m=letterMissing();if(!d.pb)m.unshift('problème');if(!clean1(d.logadr))m.unshift('adresse du logement');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'mail du propriétaire ou de l’agence',
+ recapAfter:lrarNote,
+ fname:()=>`Demande_travaux_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:'Demande de travaux — '+(clean1(d.logadr)||'logement loué'),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma demande de travaux, avec des photos, qui vous est également adressée par courrier recommandé avec accusé de réception.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:'Demande de travaux — '+((TPB.find(x=>x[0]===d.pb)||[,'logement'])[1]).toLowerCase(),paras:travauxParas(),pj:myPh().length?'Pièces jointes : photos du logement.':'',ph:myPh(),annexTitle:'Pièces jointes : photos'})}
+};
+
+/* ================= Document 11 : réclamation facture d'énergie ou d'eau ================= */
+const EN=[['elec','Électricité'],['gaz','Gaz'],['eau','Eau']];
+const EMOT=[['estimation','Facture sur estimation, très différente de ma consommation'],['anormale','Consommation anormalement élevée'],['releve','Erreur de relevé du compteur'],['mensualisation','Erreur sur la mensualisation ou les prélèvements'],['rattrapage','Rattrapage de consommations anciennes'],['autre','Autre motif']];
+const EMOT_TXT={estimation:'cette facture est établie sur une estimation qui ne correspond pas à ma consommation réelle',anormale:'elle fait apparaître une consommation anormalement élevée par rapport à mes consommations habituelles',releve:'elle repose sur un relevé erroné du compteur',mensualisation:'elle comporte une erreur dans le calcul de la mensualisation ou des prélèvements',rattrapage:'elle comporte un rattrapage de consommations anciennes',autre:'elle me paraît erronée'};
+const pdlLabel=()=>d.energie==='gaz'?'N° PCE (point de comptage, 14 chiffres)':d.energie==='eau'?'N° de compteur ou de contrat':'N° PDL (point de livraison, 14 chiffres)';
+function energieParas(){
+ const L=[],en=(EN.find(x=>x[0]===d.energie)||[,'énergie'])[1].toLowerCase(),ids=[clean1(d.numclient)&&`n° client ${clean1(d.numclient)}`,clean1(d.pdl)&&`${d.energie==='gaz'?'PCE':d.energie==='eau'?'compteur':'PDL'} ${clean1(d.pdl)}`].filter(Boolean).join(', ');
+ L.push(`Titulaire d’un contrat de fourniture d’${en==='eau'?'eau':en}${ids?` (${ids})`:''}${clean1(d.lieu)?` pour le logement situé ${clean1(d.lieu)}`:''}, je conteste la facture${clean1(d.facno)?` n° ${clean1(d.facno)}`:''}${d.facdate?` du ${fr(d.facdate)}`:''}${clean1(d.montant)?`, d’un montant de ${eur(num(d.montant))}`:''}.`);
+ L.push(`En effet, ${EMOT_TXT[d.motif]||'elle me paraît erronée'}${clean1(d.details)?' : '+clean1(d.details):''}.`);
+ if(clean1(d.index))L.push(`Le ${fr(d.idxdate)||'…'}, l’index relevé sur mon compteur était de ${clean1(d.index)}${d.idxphoto==='oui'?' (photo jointe)':''}.`);
+ if(d.energie!=='eau'&&(d.motif==='rattrapage'||d.motif==='releve'||d.motif==='estimation'))L.push(`Je vous rappelle qu’aucune consommation d’électricité ou de gaz naturel antérieure de plus de quatorze mois au dernier relevé ou autorelevé ne peut être facturée, sauf exceptions prévues par l’article L. 224-11 du code de la consommation.`);
+ L.push(`Je vous demande de vérifier ma consommation, de m’adresser une facture rectifiée et, le cas échéant, de me rembourser le trop-perçu. Dans l’attente, je vous remercie de suspendre le recouvrement de la somme contestée.`);
+ L.push(d.energie==='eau'?`À défaut de réponse satisfaisante dans un délai de deux mois, je saisirai la Médiation de l’eau.`:`À défaut de réponse satisfaisante dans un délai de deux mois, je saisirai le Médiateur national de l’énergie.`);
+ return L;
+}
+const energieObjet=()=>`Contestation de la facture${clean1(d.facno)?' n° '+clean1(d.facno):''}${d.facdate?' du '+fr(d.facdate):''}`;
+const ENERGIE={
+ key:'attest_energie_v1',title:'Réclamation facture',sub:'Électricité, gaz ou eau',
+ init:x=>{if(!x.le)x.le=today;if(!x.energie)x.energie='elec'},
+ maxPh:3,phLabels:[],phIntro:()=>`<p>Joignez si possible une <b>photo du compteur</b> (avec l’index lisible) et la <b>facture contestée</b>. Les photos sont ajoutées à la fin du PDF (3 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une photo':'Photographier le compteur ou la facture',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À contester une facture d’électricité, de gaz ou d’eau auprès du fournisseur : estimation trop élevée, erreur de relevé, consommation anormale, mensualisation…</p></div>
+ <div class="note warn"><ul>
+  <li>Relevez votre compteur et prenez-le en photo : c’est la meilleure preuve.</li>
+  <li>Électricité et gaz : sans réponse satisfaisante sous <b>2 mois</b>, vous pouvez saisir gratuitement le <b>Médiateur national de l’énergie</b> (<a href="https://www.energie-mediateur.fr/" target="_blank" rel="noopener">energie-mediateur.fr</a>).</li>
+  <li>Eau : après la réclamation au service des eaux, vous pouvez saisir la <b>Médiation de l’eau</b> (<a href="https://www.mediation-eau.fr/" target="_blank" rel="noopener">mediation-eau.fr</a>).</li></ul></div>`,fields:[]},
+  {t:'Votre contrat',fields:[
+   {k:'energie',l:'Facture de…',ty:'radio',o:EN},
+   {k:'numclient',l:'N° client',ty:'text',h:'Il figure en haut de vos factures.'},
+   {k:'pdl',l:'N° PDL, PCE ou compteur',ty:'text',h:'Électricité : PDL (14 chiffres) ; gaz : PCE (14 chiffres) ; eau : n° de compteur. Sur la facture.'},
+   {k:'lieu',l:'Adresse du logement',ty:'text',h:'Si différente de votre adresse.'}]},
+  {t:'La facture contestée',fields:[
+   {row:[{k:'facno',l:'N° de facture',ty:'text'},{k:'facdate',l:'Date de la facture',ty:'date'}]},
+   {k:'montant',l:'Montant (€)',ty:'text'},
+   {k:'motif',l:'Ce qui ne va pas',ty:'radio',o:EMOT},
+   {k:'details',l:'Précisions',ty:'area',h:'Facultatif. Exemple : « ma consommation habituelle est d’environ 300 kWh par mois ».'},
+   {row:[{k:'index',l:'Index relevé sur le compteur',ty:'text',h:'Facultatif'},{k:'idxdate',l:'Relevé le',ty:'date'}]},
+   {k:'idxphoto',l:'Avez-vous une photo du compteur ?',ty:'radio',o:YN}]},
+  {t:'Photos',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Photos',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le fournisseur',fields:RECIP('du fournisseur ou du service des eaux','Exemple : « EDF — Service clients », « TotalEnergies », « Eau de Marseille ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['details'],recapMore:()=>[],
+ recapBefore:()=>letterPreview(energieObjet(),energieParas()),
+ missing(){const m=letterMissing();if(!d.motif)m.unshift('motif');if(!clean1(d.facno)&&!d.facdate)m.unshift('facture contestée');if(!clean1(d.numclient))m.unshift('n° client');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service clients du fournisseur',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>Envoyez la lettre par le formulaire de réclamation de votre espace client (en joignant le PDF) ou en <b>lettre recommandée avec accusé de réception</b>. Gardez la date : elle fait courir le délai de 2 mois avant la médiation.</p></div>`,
+ fname:()=>`Reclamation_facture${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:energieObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma réclamation concernant la facture${clean1(d.facno)?' n° '+clean1(d.facno):''}, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:energieObjet(),paras:energieParas(),pj:myPh().length?'Pièces jointes : photos du compteur et de la facture.':'',ph:myPh(),annexTitle:'Pièces jointes',rec:false})}
+};
+
+/* ================= Document 12 : réclamation pour colis perdu ou abîmé ================= */
+const colisVendeur=()=>d.cadre!=='envoi';
+function colisParas(){
+ const L=[],perdu=d.etat!=='abime',suivi=clean1(d.suivi);
+ if(colisVendeur()){
+  L.push(`Le ${fr(d.cmddate)||'…'}, j’ai commandé sur votre site ${clean1(d.contenu)||'…'}${clean1(d.cmdno)?` (commande n° ${clean1(d.cmdno)})`:''}${clean1(d.valeur)?`, pour un montant de ${eur(num(d.valeur))}`:''}${clean1(d.transp)?`, expédié par ${clean1(d.transp)}`:''}${suivi?` (n° de suivi ${suivi})`:''}.`);
+  L.push(perdu?`Je n’ai jamais reçu ce colis.`:`Le colis m’a été livré le ${fr(d.livdate)||'…'} endommagé${clean1(d.degats)?' : '+clean1(d.degats):''}.${d.reserves==='oui'?' J’ai émis des réserves auprès du livreur lors de la livraison.':''}`);
+  L.push(`Je vous rappelle que le vendeur est responsable de plein droit de la bonne exécution du contrat, livraison comprise, et que le risque de perte ou d’endommagement du bien ne m’est transféré qu’au moment où j’en prends physiquement possession (articles L. 216-4 et L. 221-15 du code de la consommation). Il vous appartient donc de vous retourner, le cas échéant, vers votre transporteur.`);
+  L.push(perdu?`Je vous demande donc de me livrer le bien commandé ou, à défaut, de me rembourser la totalité des sommes versées, dans un délai de quinze jours.`:`Je vous demande donc de me remplacer le bien ou, à défaut, de me rembourser la totalité des sommes versées, dans un délai de quinze jours.`);
+ }else{
+  L.push(`Le ${fr(d.envdate)||'…'}, un colis contenant ${clean1(d.contenu)||'…'}${clean1(d.valeur)?`, d’une valeur de ${eur(num(d.valeur))}`:''}, a été confié à vos services${suivi?` sous le n° de suivi ${suivi}`:''}${clean1(d.dest)?`, à destination de ${clean1(d.dest)}`:''}.`);
+  L.push(perdu?`Ce colis n’a jamais été livré et son suivi n’évolue plus.`:`Ce colis a été livré le ${fr(d.livdate)||'…'} endommagé${clean1(d.degats)?' : '+clean1(d.degats):''}.${d.reserves==='oui'?' Des réserves ont été émises lors de la livraison.':''}`);
+  L.push(`Je vous demande de m’indemniser de la valeur du contenu${clean1(d.valeur)?`, soit ${eur(num(d.valeur))}`:''}, ainsi que des frais d’envoi, dans les conditions prévues par votre contrat de transport.`);
+ }
+ L.push(`Vous trouverez ci-joint les justificatifs dont je dispose. À défaut de réponse satisfaisante, je me réserve la possibilité de saisir le médiateur compétent, puis la juridiction compétente.`);
+ return L;
+}
+const colisObjet=()=>`Réclamation — colis ${d.etat==='abime'?'endommagé':'non livré'}${clean1(d.suivi)?' (suivi '+clean1(d.suivi)+')':''}`;
+const COLIS={
+ key:'attest_colis_v1',title:'Colis perdu ou abîmé',sub:'Réclamation au vendeur ou au transporteur',
+ init:x=>{if(!x.le)x.le=today;if(!x.cadre)x.cadre='achat';if(!x.etat)x.etat='perdu'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez la <b>preuve d’achat ou de dépôt</b>, le <b>suivi du colis</b> (capture d’écran) et, s’il est abîmé, des <b>photos du colis et du contenu</b>. Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une photo':'Photographier un justificatif',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À réclamer quand un colis n’arrive pas ou arrive abîmé.</p></div>
+ <div class="note warn"><ul>
+  <li><b>Vous avez acheté en ligne ?</b> C’est le <b>vendeur</b> qui est responsable de la livraison (article L. 216-4 du code de la consommation) : adressez la lettre au vendeur, pas au transporteur.</li>
+  <li><b>Vous avez envoyé un colis vous-même</b> (ou reçu un envoi d’un particulier) : la réclamation va au transporteur, souvent par son formulaire en ligne, selon les conditions de votre envoi.</li>
+  <li>Colis abîmé : notez vos réserves précises au livreur à la livraison, prenez des photos et, face à un transporteur, confirmez vos réserves par lettre recommandée dans les <b>3 jours</b> (article L. 133-3 du code de commerce).</li></ul></div>`,fields:[]},
+  {t:'Votre situation',fields:[
+   {k:'cadre',l:'Il s’agit…',ty:'radio',o:[['achat','D’un achat en ligne (je réclame au vendeur)'],['envoi','D’un envoi (je réclame au transporteur)']]},
+   {k:'etat',l:'Le colis est…',ty:'radio',o:[['perdu','Perdu / jamais livré'],['abime','Livré abîmé']]}]},
+  {t:'Le colis',fields:[
+   {k:'contenu',l:'Contenu',ty:'text',h:'Exemple : « un téléphone Samsung Galaxy S25 ».'},
+   {row:[{k:'cmdno',l:'N° de commande',ty:'text'},{k:'cmddate',l:'Date de commande',ty:'date'}],if:()=>colisVendeur()},
+   {row:[{k:'envdate',l:'Date d’envoi',ty:'date'},{k:'dest',l:'Destinataire',ty:'text',h:'Facultatif'}],if:()=>!colisVendeur()},
+   {row:[{k:'transp',l:'Transporteur',ty:'text',h:'Colissimo, Chronopost, Mondial Relay…'},{k:'suivi',l:'N° de suivi',ty:'text'}]},
+   {k:'valeur',l:'Valeur (€)',ty:'text'},
+   {k:'livdate',l:'Date de livraison',ty:'date',if:x=>x.etat==='abime'},
+   {k:'degats',l:'Dégâts constatés',ty:'text',if:x=>x.etat==='abime'},
+   {k:'reserves',l:'Des réserves ont-elles été faites à la livraison ?',ty:'radio',o:YN,if:x=>x.etat==='abime'}]},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Destinataire',pre:()=>`<div class="note"><p>${colisVendeur()?'Indiquez le <b>vendeur</b> (le site marchand).':'Indiquez le <b>transporteur</b> (service réclamations).'}</p></div>`,fields:RECIP('du vendeur ou du transporteur','Exemple : « Cdiscount — Service client » ou « La Poste — Service clients Colissimo ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>letterPreview(colisObjet(),colisParas()),
+ missing(){const m=letterMissing();if(!clean1(d.contenu))m.unshift('contenu du colis');if(!clean1(d.suivi)&&!clean1(d.cmdno))m.unshift('n° de suivi ou de commande');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service client',
+ recapAfter:lrarNote,
+ fname:()=>`Reclamation_colis${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:colisObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma réclamation concernant ce colis, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:colisObjet(),paras:colisParas(),pj:myPh().length?'Pièces jointes : justificatifs et photos.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+/* ================= Document 13 : procuration simple ================= */
+const POBJ=[['colis','Retirer un colis ou un envoi'],['document','Retirer un document'],['demarche','Accomplir une démarche'],['autre','Autre']];
+const POBJ_TXT={colis:'retirer en mon nom le colis ou l’envoi suivant',document:'retirer en mon nom le document suivant',demarche:'accomplir en mon nom la démarche suivante',autre:'agir en mon nom pour'};
+function procuParas(){
+ const L=[];
+ L.push(`Je soussigné${pE('a_')} ${pText('a_')},`);
+ L.push(`donne procuration à ${pText('b_')},`);
+ L.push(`pour ${POBJ_TXT[d.pobj]||'agir en mon nom pour'} : ${clean1(d.pdet)||'…'}${clean1(d.porg)?`, auprès de ${clean1(d.porg)}`:''}.`);
+ L.push(d.pval==='date'?`Cette procuration est valable jusqu’au ${fr(d.pfin)||'…'}.`:`Cette procuration est valable pour cette seule opération.`);
+ L.push(`Le mandataire présentera sa propre pièce d’identité ainsi qu’une copie de la mienne, jointes à la présente procuration.`);
+ L.push(faitLe()+'.');
+ return L;
+}
+const PROCU={
+ key:'attest_procu_v1',title:'Procuration',sub:'Autoriser une personne à agir pour vous',
+ init:x=>{if(!x.le)x.le=today;if(!x.pval)x.pval='une'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez la <b>copie de votre pièce d’identité</b> (recto, et verso si besoin) et, si possible, celle du <b>mandataire</b>. Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une autre pièce d’identité':'Photographier votre pièce d’identité',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> Une procuration permet à une personne de confiance (le <b>mandataire</b>) d’agir à votre place pour une démarche précise : retirer un colis ou un document, faire une démarche administrative…</p></div>
+ <div class="note warn"><ul>
+  <li><b>Certaines démarches ont leur propre formulaire</b> : le <b>vote</b> se fait uniquement par la procuration officielle (maprocuration.gouv.fr, commissariat ou gendarmerie) ; <b>La Poste</b> demande sa propre procuration pour retirer les recommandés et colis de façon durable (pour un envoi unique, le verso de l’avis de passage suffit souvent) ; les <b>banques</b>, les <b>notaires</b> et certaines administrations ont aussi leurs formulaires.</li>
+  <li>Une procuration simple ne permet pas de vendre un bien immobilier ou de signer un acte qui exige un notaire.</li>
+  <li>Soyez précis sur l’objet et la durée.</li></ul></div>`,fields:[]},
+  {t:'Vous (le mandant)',fields:personFields('a_')},
+  {t:'Le mandataire',fields:personFields('b_')},
+  {t:'L’objet de la procuration',fields:[
+   {k:'pobj',l:'La procuration sert à…',ty:'radio',o:POBJ},
+   {k:'pdet',l:'Précisez',ty:'text',h:'Exemple : « le colis n° 6A12345678901 », « mon passeport », « déposer mon dossier de demande de… ».'},
+   {k:'porg',l:'Auprès de quel organisme ?',ty:'text',h:'Facultatif. Exemple : « Mairie de Marseille 8e », « Relais colis Tabac du Port ».'},
+   {k:'pval',l:'Durée',ty:'radio',o:[['une','Pour cette seule fois'],['date','Jusqu’à une date']]},
+   {k:'pfin',l:'Valable jusqu’au',ty:'date',if:x=>x.pval==='date',sub:1}]},
+  {t:'Pièces d’identité',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièces d’identité',phCount()]],fields:[]},
+  {t:'Date et signatures',fields:[{row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}],
+   post:()=>padBox('sigT','sig','Signature du mandant (vous)','Signez avec le doigt')+padBox('sigB','sigb','Signature du mandataire (facultatif)','Le mandataire signe pour accepter'),
+   pads:[['sigT','sig'],['sigB','sigb']],recapRows:()=>[['Signature du mandant',d.sigt?'Oui':'Non'],['Signature du mandataire',d.sigbt?'Oui':'Non']]},
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>preview('PROCURATION',procuParas()),
+ missing(){const m=[];if(!d.a_nom||!d.a_prenom)m.push('vos nom et prénom');if(!d.b_nom)m.push('mandataire');if(!d.pobj||!clean1(d.pdet))m.push('objet de la procuration');if(!d.sigt)m.push('votre signature');if(!myPh().length)m.push('copie de votre pièce d’identité');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais l’organisme risque de le refuser s’il manque des éléments.',
+ mailHint:'mail du mandataire',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>Envoyez le PDF au mandataire : il l’imprimera et le présentera avec sa pièce d’identité. Certains organismes exigent l’original signé à la main : en cas de doute, imprimez et signez aussi au stylo.</p></div>`,
+ fname:()=>{const n=fnPart(d.b_nom);return `Procuration${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){return {to:clean1(d.mailto),subj:'Procuration',body:`Bonjour,\n\nVoici la procuration signée, avec la copie de ma pièce d’identité.\n\n${pName('a_')}`}},
+ build(){return paperPDF({title:'PROCURATION',blocks:procuParas().map(p=>({p})),
+  sigs:[{key:'sig',label:'Le mandant (bon pour pouvoir)',name:pName('a_')},{key:'sigb',label:'Le mandataire (bon pour acceptation)',name:pName('b_')}],ph:myPh(),annexTitle:'Pièces jointes : pièces d’identité',docTitle:'Procuration'})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
