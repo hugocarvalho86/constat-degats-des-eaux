@@ -35,7 +35,7 @@ const CATALOG=[
  {id:'frais',t:'Réclamation pour frais bancaires',s:'Commissions d’intervention, rejets, agios : plafonds légaux rappelés'},
  {id:'echeancier',t:'Demande de délai de paiement',s:'Impôts, facture, loyer, hôpital : un échéancier calculé à proposer'},
  {id:'insalubre',t:'Signaler un logement insalubre',s:'Lettre à la mairie avec photos, mairie trouvée automatiquement'},
- {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
+ {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646*01 — enfant mineur qui voyage sans ses parents'}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -1887,7 +1887,125 @@ const ECHEANCIER={
  build(){return letterPDF({objet:echObjet(),paras:echParas(),rec:false,pj:myPh().length?'Pièces jointes : facture ou avis et justificatifs de ma situation.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS,conformite:CONFORMITE,sepa:SEPA,insalubre:INSALUBRE,depot:DEPOT,demission:DEMISSION,frais:FRAIS,echeancier:ECHEANCIER};
+/* ================= Document : autorisation de sortie du territoire (Cerfa 15646*01) ================= */
+const AST_F='topmostSubform[0].Page1[0].';
+const astAdd=(iso,days)=>{if(!iso)return '';const t=new Date(iso+'T12:00:00');t.setDate(t.getDate()+days);return t.toISOString().slice(0,10)};
+const astMax=()=>{const s=d.le||today;const t=new Date(s+'T12:00:00');t.setFullYear(t.getFullYear()+1);t.setDate(t.getDate()-1);return t.toISOString().slice(0,10)};
+const astEnfant=()=>[d.e_prenom,d.e_nom&&d.e_nom.toUpperCase()].filter(Boolean).map(clean1).join(' ');
+function astInfo(){
+ const max=astMax(),fin=d.fin;
+ if(!fin)return `<div class="note"><p>L’autorisation peut aller jusqu’au <b>${fr(max)}</b> au plus tard (un an à compter de la signature, le ${fr(d.le||today)}). Mettez la date de retour prévue, avec un peu de marge.</p></div>`;
+ if(fin>max)return `<div class="note warn"><p class="miss">Trop long : l’autorisation ne peut pas dépasser un an à compter de sa signature. Date la plus tardive possible : <b>${fr(max)}</b>.</p></div>`;
+ if(fin<(d.le||today))return `<div class="note warn"><p class="miss">La date de fin est avant la date de signature.</p></div>`;
+ if(d.retour&&fin<d.retour)return `<div class="note warn"><p class="miss">La date de fin (${fr(fin)}) est avant la date de retour prévue (${fr(d.retour)}) : l’enfant ne serait plus couvert au retour.</p></div>`;
+ return `<div class="note"><p>✓ Autorisation valable jusqu’au <b>${fr(fin)}</b> inclus.</p></div>`;
+}
+const AST_VOIES=['Rue','Avenue','Boulevard','Allée','Place','Route','Impasse','Lieu-dit','Lotissement','Passage','Résidence','Rond-Point','Square','Village'];
+function astSplitAdr(s){
+ s=clean1(s);const m=s.match(/^(\d+)\s*(bis|ter|quater|[A-D])?\b[\s,]*(.*)$/i);let num='',ext='',rest=s;
+ if(m){num=m[1];ext=m[2]||'';rest=m[3]}
+ let voie='';const w=rest.split(' ')[0]||'';const v=AST_VOIES.find(x=>x.toLowerCase()===w.toLowerCase().replace(/\.$/,'')||(w.toLowerCase()==='bd'&&x==='Boulevard')||(w.toLowerCase()==='av'&&x==='Avenue'));
+ if(v){voie=v;rest=rest.slice(w.length).trim()}
+ return {num,ext,voie,rest};
+}
+const AST={
+ key:'attest_ast_v1',title:'Autorisation de sortie du territoire',sub:'Cerfa 15646*01 — enfant qui voyage sans ses parents',
+ init:x=>{if(!x.le)x.le=today;if(!x.e_pays)x.e_pays='France';if(!x.p_pays)x.p_pays='France';if(!x.p_nat)x.p_nat='Française';if(!x.p_padr)x.p_padr='France';if(!x.qualite)x.qualite='mere';if(!x.doctype)x.doctype='cni'},
+ maxPh:2,phLabels:['Recto','Verso'],
+ phIntro:()=>`<p>Photographiez <b>votre pièce d’identité</b> (recto et verso) : la copie est ajoutée à la fin du PDF. L’enfant devra présenter cette copie avec le formulaire.</p>`,
+ phBtn:n=>n?'Ajouter le verso':'Photographier votre pièce d’identité',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> Un enfant mineur qui <b>quitte la France sans être accompagné d’un de ses parents</b> (voyage scolaire, colonie, séjour chez des proches, voyage avec un autre adulte…) doit avoir une <b>autorisation de sortie du territoire</b> signée par un parent (titulaire de l’autorité parentale). L’appli remplit pour vous le formulaire officiel <b>Cerfa n° 15646*01</b>.</p></div>
+ <div class="note warn"><ul>
+  <li>Aucune démarche en mairie ou en préfecture : il suffit de remplir et signer le formulaire.</li>
+  <li>L’autorisation est valable <b>un an au plus</b> à compter de sa signature.</li>
+  <li>L’enfant voyage avec <b>3 documents</b> : sa propre <b>pièce d’identité</b> (carte d’identité ou passeport, selon le pays), le <b>formulaire signé</b> et la <b>copie de la pièce d’identité du parent</b> qui a signé.</li>
+  <li>Selon la destination, un <b>passeport</b> ou un <b>visa</b> peut être exigé : vérifiez sur la page « Conseils aux voyageurs » du ministère des Affaires étrangères.</li>
+  <li>Cette autorisation ne lève pas une <b>opposition</b> ou une <b>interdiction de sortie du territoire</b> décidée pour l’enfant.</li></ul></div>`,fields:[]},
+  {t:'L’enfant',fields:[
+   {k:'e_nom',l:'Nom (figurant sur l’acte de naissance)',ty:'text'},
+   {k:'e_prenom',l:'Prénom(s)',ty:'text'},
+   {row:[{k:'e_naiss',l:'Date de naissance',ty:'date'},{k:'e_naisslieu',l:'Lieu de naissance',ty:'text'}]},
+   {k:'e_pays',l:'Pays de naissance',ty:'text'}]},
+  {t:'Vous, le parent qui signe',fields:[
+   {k:'qualite',l:'Vous êtes',ty:'radio',o:[['mere','La mère'],['pere','Le père'],['autre','Une autre personne qui exerce l’autorité parentale']]},
+   {k:'qualautre',l:'Précisez',ty:'text',if:x=>x.qualite==='autre',h:'Exemple : « tuteur légal ».'},
+   {k:'p_nom',l:'Nom (figurant sur l’acte de naissance)',ty:'text'},
+   {k:'p_usage',l:'Nom d’usage',ty:'text',h:'Facultatif. Exemple : nom d’épouse ou d’époux.'},
+   {k:'p_prenom',l:'Prénom(s)',ty:'text'},
+   {row:[{k:'p_naiss',l:'Date de naissance',ty:'date'},{k:'p_naisslieu',l:'Lieu de naissance',ty:'text'}]},
+   {row:[{k:'p_pays',l:'Pays de naissance',ty:'text'},{k:'p_nat',l:'Nationalité',ty:'text'}]}]},
+  {t:'Vos coordonnées',fields:[
+   {k:'p_adr',l:'Adresse',ty:'text',h:'Exemple : « 12 bis rue de la République ».'},
+   {row:[{k:'p_cp',l:'Code postal',ty:'tel'},{k:'p_ville',l:'Commune',ty:'text'}]},
+   {k:'p_padr',l:'Pays',ty:'text'},
+   {row:[{k:'p_tel',l:'Téléphone',ty:'tel',h:'Recommandé'},{k:'p_mail',l:'Mail',ty:'email',h:'Recommandé'}]}]},
+  {t:'Le voyage',fields:[
+   {k:'dest',l:'Destination',ty:'text',h:'Facultatif : elle ne figure pas sur le formulaire, mais sert à vérifier les papiers demandés.'},
+   {row:[{k:'depart',l:'Départ prévu',ty:'date',h:'Facultatif'},{k:'retour',l:'Retour prévu',ty:'date',h:'Facultatif'}]},
+   {k:'fin',l:'L’autorisation est valable jusqu’au (inclus)',ty:'date',h:'Un an au plus après la signature.'}],
+   post:()=>`<div id="astinfo">${astInfo()}</div>`,live:['fin','retour','le'],liveFn:()=>{const c=$('#astinfo');if(c)c.innerHTML=astInfo()}},
+  {t:'Votre pièce d’identité',pre:()=>`<div class="note"><p>Indiquez la pièce d’identité dont vous joignez la copie. Si vous êtes français, une carte d’identité ou un passeport <b>périmé depuis moins de 5 ans</b> est accepté.</p></div>`,fields:[
+   {k:'doctype',l:'Type de document',ty:'radio',o:[['cni','Carte nationale d’identité'],['passeport','Passeport'],['autre','Autre']]},
+   {k:'docautre',l:'Précisez',ty:'text',if:x=>x.doctype==='autre',h:'Exemple : « titre de séjour ».'},
+   {row:[{k:'docdate',l:'Délivré(e) le',ty:'date'},{k:'docpar',l:'Par (autorité de délivrance)',ty:'text',h:'Exemple : « Préfecture des Bouches-du-Rhône ».'}]}]},
+  {t:'Copie de votre pièce d’identité',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Copie de la pièce d’identité',phCount()]],fields:[]},
+  {t:'Date et signature',fields:[{k:'le',l:'Date de signature',ty:'date'}],post:()=>sigHTML('Signez avec le doigt'),pads:[['sigT','sig']],recapRows:()=>[['Signature',d.sigt?'Oui':'Non (à signer à la main après impression)']]},
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>astInfo(),
+ missing(){const m=[];if(!d.e_nom||!d.e_prenom)m.push('nom et prénom de l’enfant');if(!d.e_naiss)m.push('date de naissance de l’enfant');
+  if(!d.p_nom||!d.p_prenom)m.push('vos nom et prénom');if(!d.p_adr||!d.p_ville)m.push('votre adresse');if(!d.fin)m.push('date de fin de l’autorisation');
+  else if(d.fin>astMax())m.push('durée de plus d’un an');if(!d.docdate||!d.docpar)m.push('votre pièce d’identité');if(!myPh().length)m.push('copie de votre pièce d’identité');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais un formulaire incomplet risque d’être refusé à la frontière.',
+ mailHint:'accompagnateur, organisateur du séjour…',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Le plus sûr :</b> imprimez le formulaire et ${d.sigt?'gardez-le tel quel ou ':''}<b>signez-le à la main</b>. L’enfant doit avoir sur lui <b>l’original</b> du formulaire signé, <b>la copie de votre pièce d’identité</b> (jointe à la fin du PDF) et <b>sa propre pièce d’identité</b> (carte d’identité ou passeport${clean1(d.dest)?', selon les règles du pays de destination : '+esc(clean1(d.dest)):''}).</p>
+  <p style="font-size:13px;color:var(--mute);margin-top:8px">Le formulaire officiel peut aussi être rempli sur service-public.fr. Cette appli est indépendante de l’administration.</p></div>`,
+ fname:()=>{const n=fnPart(d.e_nom);return `Autorisation_sortie_territoire${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){return {to:clean1(d.mailto),subj:`Autorisation de sortie du territoire — ${astEnfant()}`,
+  body:`Bonjour,\n\nVeuillez trouver ci-joint l’autorisation de sortie du territoire (Cerfa 15646*01) de ${astEnfant()||'mon enfant'}${clean1(d.dest)?` pour son séjour à destination de ${clean1(d.dest)}`:''}, valable jusqu’au ${fr(d.fin)||'…'}, avec la copie de ma pièce d’identité.\n\nCordialement,\n${[d.p_prenom,d.p_nom&&d.p_nom.toUpperCase()].filter(Boolean).map(clean1).join(' ')}`}},
+ async build(){
+  const {PDFDocument,StandardFonts}=PDFLib;
+  const r=await fetch('cerfa_15646.pdf');if(!r.ok)throw new Error('formulaire introuvable');
+  const doc=await PDFDocument.load(await r.arrayBuffer());
+  const font=await doc.embedFont(StandardFonts.Helvetica),bold=await doc.embedFont(StandardFonts.HelveticaBold);
+  const enc=encoder(font),one=s=>enc(clean1(s));
+  const form=doc.getForm();
+  const set=(n,v,size=10)=>{try{const f=form.getTextField(AST_F+n+'[0]');let s=one(v);const ml=f.getMaxLength();if(ml)s=s.slice(0,ml);f.setText(s);f.setFontSize(size)}catch(e){}};
+  const dt=v=>{if(!v)return '';const[y,m,dd]=v.split('-');return dd+m+y};
+  set('txt_NomMineur',d.e_nom&&d.e_nom.toUpperCase());set('txt_PenomMineur',d.e_prenom);set('txt_DateNaissanceMineur',dt(d.e_naiss));
+  set('txt_LieuNaissanceMineur',d.e_naisslieu);set('txt_PaysNaissanceMineur',d.e_pays);
+  set('txt_NomParent',d.p_nom&&d.p_nom.toUpperCase());set('txt_NomUsageParent',d.p_usage&&d.p_usage.toUpperCase());set('txt_PenomParent',d.p_prenom);
+  set('txt_DateNaissanceParent',dt(d.p_naiss));set('txt_LieuNaissanceParent',d.p_naisslieu);set('txt_PaysNaissanceParent',d.p_pays);set('txt_NationaliteParent',d.p_nat);
+  try{const g=form.getRadioGroup(AST_F+'grp_rdb_Qualite[0]');g.select({pere:'3',mere:'2',autre:'1'}[d.qualite]||'2')}catch(e){}
+  if(d.qualite==='autre')set('txt_AutreQualiteParent',d.qualautre);
+  const a=astSplitAdr(d.p_adr);set('txt_NumAdresseParent',a.num);set('txt_ExtensionAdresseParent',a.ext);
+  try{if(a.voie)form.getDropdown(AST_F+'list_TypeVoieAdresseParent[0]').select(a.voie)}catch(e){}
+  set('txt_NomVoieAdresseParent',a.rest);set('txt_CodePostalAdresseParent',String(d.p_cp||'').replace(/\D/g,''));set('txt_CommuneAdresseParent',d.p_ville);set('txt_PaysAdresseParent',d.p_padr);
+  set('txt_TelephoneParent',String(d.p_tel||'').replace(/\D/g,''));set('txt_CourrielParent',d.p_mail);
+  set('txt_DateDureeAutorisation',dt(d.fin));set('txt_DateSignatureAutorisation',dt(d.le));
+  try{form.getRadioGroup(AST_F+'grp_rdb_TypeDocument[0]').select({cni:'3',passeport:'2',autre:'1'}[d.doctype]||'3')}catch(e){}
+  if(d.doctype==='autre')set('txt_AutreTypeDocument',d.docautre);
+  set('txt_DateDelivranceDocument',dt(d.docdate));set('txt_AutoriteDelivranceDocument',d.docpar);
+  for(const b of ['Imprimer1','Réinitialiser1']){try{form.removeField(form.getButton(AST_F+b+'[0]'))}catch(e){}}
+  form.updateFieldAppearances(font);form.flatten();
+  const pg=doc.getPages()[0];
+  const s=sigImg('sig');if(s){const im=await doc.embedPng(s.u),k=Math.min(86/im.width,40/im.height);pg.drawImage(im,{x:447,y:258,width:im.width*k,height:im.height*k})}
+  const photos=myPh();if(photos.length){
+   const W=595.28,H=841.89,M=40,bw=W-2*M,bh=330;const p2=doc.addPage([W,H]);
+   p2.drawText(enc('Copie du document justifiant l’identité du signataire'),{x:M,y:H-50,size:12,font:bold,color:INK()});
+   p2.drawText(enc([d.p_prenom,d.p_nom&&d.p_nom.toUpperCase()].filter(Boolean).map(clean1).join(' ')),{x:M,y:H-65,size:9,font,color:INK()});
+   for(let j=0;j<photos.length;j++){const p=photos[j],im=await doc.embedJpg(new Uint8Array(await p.blob.arrayBuffer()));
+    const top=H-85-j*360,k=Math.min(bw/im.width,bh/im.height),w=im.width*k,h=im.height*k;
+    p2.drawImage(im,{x:M+(bw-w)/2,y:top-bh+(bh-h)/2,width:w,height:h});p2.drawText(j?'Verso':'Recto',{x:M,y:top-bh-13,size:9,font,color:INK()})}
+  }
+  doc.setTitle('Autorisation de sortie du territoire (Cerfa 15646*01)');
+  return finish(doc);
+ }
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS,conformite:CONFORMITE,sepa:SEPA,insalubre:INSALUBRE,depot:DEPOT,demission:DEMISSION,frais:FRAIS,echeancier:ECHEANCIER,ast:AST};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
