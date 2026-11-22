@@ -436,7 +436,20 @@ function recapHTML(){
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox" id="mailinfo">${NATIVE?M().mailInfo:'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
- </div>${M().recapAfter?M().recapAfter():''}${devisHTML()}<div id="out"></div>`;
+ </div>${M().recapAfter?M().recapAfter():''}${lrarHTML()}${devisHTML()}<div id="out"></div>`;
+}
+/* Envoi en recommandé avec AR par un service en ligne (déclaration et contestation ; l'utilisateur paie sur le site du service) */
+const LRAR_LINKS=[['La Poste','https://www.laposte.fr/envoi-courrier-en-ligne'],['Merci Facteur','https://www.merci-facteur.com/lettres/lrar/lettre-recommandee.php']];
+const lrarAddr=()=>[d.assureur,...String(d.assadr||'').split(/\n/)].map(clean1).filter(Boolean).join('\n');
+function lrarHTML(){
+ if(mode!=='decl'&&mode!=='contest')return '';const a=lrarAddr();
+ return `<div class="note lrar" style="margin-top:16px"><p><b>📮 Envoyer en recommandé avec AR, sans vous déplacer</b></p>
+<p>Un service en ligne imprime votre lettre, la poste en <b>recommandé avec accusé de réception</b> et vous renvoie la preuve de dépôt puis l’accusé de réception. Comptez environ 7 à 9 € pour une lettre d’une page (un peu plus avec les photos), à payer sur leur site.</p>
+<ol style="margin:6px 0 8px;padding-left:20px"><li>Enregistrez le PDF de votre lettre.</li><li>Ouvrez un service ci-dessous et envoyez-y le PDF.</li><li>Indiquez l’adresse de l’assureur${a?' (à copier ci-dessous)':''}.</li></ol>
+${a?`<pre id="lrar-addr" style="white-space:pre-wrap;font:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 8px">${esc(a)}</pre><button type="button" class="btn" id="lrar-copy" style="width:100%;margin-bottom:8px">Copier l’adresse de l’assureur</button>`:''}
+<button type="button" class="btn pri" id="lrar-dl" style="width:100%;margin-bottom:8px">1. Enregistrer le PDF</button>
+<div style="display:flex;gap:8px">${LRAR_LINKS.map(([n,u])=>`<a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none;text-align:center" href="${u}" target="_blank" rel="noopener">2. ${n}</a>`).join('')}</div>
+<p style="font-size:12.5px;color:var(--mute);margin-top:8px">Services indépendants de Vitfix, payants. Gardez la preuve de dépôt et l’accusé de réception avec votre copie de la lettre.</p></div>`;
 }
 function devisHTML(){
  if(mode==='decl'||mode==='contest'){if(!clean1(d.dombat||d.args)||isVol(d))return '';
@@ -797,6 +810,8 @@ function bindRecap(){
   const url=webDownload(bytes);say('Si le téléchargement ne démarre pas, <a href="'+url+'" target="_blank" rel="noopener">ouvrez le PDF ici</a>.');
  });
  $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,M().mail(),mode==='decl'?'Envoyer la déclaration':mode==='contest'?'Envoyer la contestation':'Envoyer le constat')));
+ const ld=$('#lrar-dl');if(ld)ld.onclick=()=>$('#dl').click();
+ const lc=$('#lrar-copy');if(lc)lc.onclick=async()=>{let ok=false;try{await navigator.clipboard.writeText(lrarAddr());ok=true}catch(e){try{const r=document.createRange();r.selectNodeContents($('#lrar-addr'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);ok=document.execCommand('copy')}catch(x){}}lc.textContent=ok?'✓ Adresse copiée':'Sélectionnez l’adresse et copiez-la';setTimeout(()=>lc.textContent='Copier l’adresse de l’assureur',2500)};
  document.querySelectorAll('[data-devis]').forEach(b=>b.onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,devisParts(b.dataset.devis),'Demander un devis'))));
 }
 function clean1(s){return String(s||'').replace(/\s+/g,' ').trim()}

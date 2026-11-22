@@ -606,6 +606,16 @@ const RECIP=(what,ex)=>[
  {k:'mailto',l:'Son mail',ty:'email',h:'Facultatif : pour envoyer aussi le PDF par mail.'}];
 const senderLines=()=>[fullName(),d.adr,[d.cp,d.ville].filter(Boolean).join(' '),d.tel&&'Tél. : '+d.tel,d.mail];
 const recipLines=()=>[d.dnom,d.dadr,[d.dcp,d.dville].filter(Boolean).join(' ')];
+/* Envoi en recommandé avec AR par un service en ligne (l'utilisateur paie sur le site du service ; Vitfix n'encaisse rien) */
+const LRAR_LINKS=[['La Poste','https://www.laposte.fr/envoi-courrier-en-ligne','laposte.fr'],['Merci Facteur','https://www.merci-facteur.com/lettres/lrar/lettre-recommandee.php','merci-facteur.com']];
+const lrarAddr=()=>recipLines().map(clean1).filter(Boolean).join('\n');
+const lrarBlock=()=>{const a=lrarAddr();return `<div class="note lrar" style="margin-top:16px"><p><b>📮 Envoyer en recommandé avec AR, sans vous déplacer</b></p>
+<p>Un service en ligne imprime votre lettre, la poste en <b>recommandé avec accusé de réception</b> et vous renvoie la preuve de dépôt puis l’accusé de réception. Comptez environ 7 à 9 € pour une lettre d’une page, à payer sur leur site.</p>
+<ol style="margin:6px 0 8px;padding-left:20px"><li>Enregistrez le PDF de votre lettre.</li><li>Ouvrez un service ci-dessous et envoyez-y le PDF.</li><li>Indiquez l’adresse du destinataire${a?' (à copier ci-dessous)':''}.</li></ol>
+${a?`<pre id="lrar-addr" style="white-space:pre-wrap;font:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 8px">${esc(a)}</pre><button type="button" class="btn" id="lrar-copy" style="width:100%;margin-bottom:8px">Copier l’adresse du destinataire</button>`:''}
+<button type="button" class="btn pri" id="lrar-dl" style="width:100%;margin-bottom:8px">1. Enregistrer le PDF</button>
+<div style="display:flex;gap:8px">${LRAR_LINKS.map(([n,u])=>`<a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none;text-align:center" href="${u}" target="_blank" rel="noopener">2. ${n}</a>`).join('')}</div>
+<p style="font-size:12.5px;color:var(--mute);margin-top:8px">Services indépendants de Vitfix, payants. Gardez la preuve de dépôt et l’accusé de réception avec votre copie de la lettre.</p></div>`};
 const SALUT='Je vous prie d’agréer, Madame, Monsieur, l’expression de mes salutations distinguées.';
 const letterPreview=(objet,paras)=>`<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(objet)}</b></p><p>Madame, Monsieur,</p>${paras.map(p=>`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`;
 const letterMissing=()=>{const m=[];if(!d.nom||!d.prenom)m.push('vos nom et prénom');if(!d.adr||!d.ville)m.push('votre adresse');if(!d.dnom)m.push('destinataire');if(!d.sigt)m.push('signature');return m};
@@ -1757,7 +1767,7 @@ function recapHTML(){
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox">${NATIVE?'Choisissez Gmail ou Outlook dans la liste : le PDF est joint automatiquement.':'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
- </div>${doc.recapAfter?doc.recapAfter():''}<div id="out"></div>`;
+ </div>${FLAT.some(f=>f.k==='dnom')?lrarBlock():''}${doc.recapAfter?doc.recapAfter():''}<div id="out"></div>`;
 }
 
 document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k||!doc)return;
@@ -1834,6 +1844,8 @@ function bindRecap(){
  $('#dl').onclick=e=>busy(e.currentTarget,false,async b=>say(await saveBytes(b,false)));
  const mb=$('#model');if(mb)mb.onclick=e=>busy(e.currentTarget,true,async b=>say(await saveBytes(b,true)+' Imprimez aussi le Cerfa vierge (service-public.fr) et recopiez-y le texte à la main.'));
  $('#mail').onclick=e=>busy(e.currentTarget,false,async b=>say(await sendMail(b,doc.mail(),'Envoyer le document')));
+ const ld=$('#lrar-dl');if(ld)ld.onclick=e=>busy(e.currentTarget,false,async b=>say(await saveBytes(b,false)+' Ouvrez ensuite La Poste ou Merci Facteur et joignez ce PDF.'));
+ const lc=$('#lrar-copy');if(lc)lc.onclick=async()=>{const t=lrarAddr();let ok=false;try{await navigator.clipboard.writeText(t);ok=true}catch(e){try{const r=document.createRange();r.selectNodeContents($('#lrar-addr'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);ok=document.execCommand('copy')}catch(x){}}lc.textContent=ok?'✓ Adresse copiée':'Sélectionnez l’adresse et copiez-la';setTimeout(()=>lc.textContent='Copier l’adresse du destinataire',2500)};
 }
 
 render();
