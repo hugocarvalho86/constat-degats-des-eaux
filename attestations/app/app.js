@@ -617,17 +617,21 @@ document.addEventListener('change',async e=>{
 
 
 /* ================= Publicité (appli Android uniquement, jamais dans la version web) =================
-   IDENTIFIANTS DE TEST GOOGLE : à remplacer par ceux du compte AdMob de Hugo avant la mise en production.
-   L'identifiant d'APPLICATION AdMob (ca-app-pub-…~…) est dans scripts/patch-android.mjs (ADMOB_APP_ID). */
-const ADS={enabled:true,test:true,interstitial:'ca-app-pub-3940256099942544/1033173712',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
+   APK de test (debug, version « 1.1-test ») : pubs de TEST Google. AAB Google Play (release) : vraies pubs du compte AdMob vitfix.applis.
+   Ne jamais cliquer sur ses propres vraies pubs (risque de suspension du compte AdMob).
+   L'identifiant d'APPLICATION AdMob est posé par scripts/patch-android.mjs (ADMOB_APP_ID_TEST / ADMOB_APP_ID_PROD). */
+const ADS={enabled:true,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
+const adUnit=()=>ADS.test?ADS.interstitialTest:ADS.interstitialProd;
 const Ads=(()=>{
  const A=NATIVE&&ADS.enabled&&CAP.Plugins&&CAP.Plugins.AdMob;
  let ready=false,loaded=false,loading=null,last=0,privacy=false;
  const wait=ms=>new Promise(r=>setTimeout(r,ms));
- function load(){if(!ready||loaded)return Promise.resolve();if(!loading)loading=A.prepareInterstitial({adId:ADS.interstitial,isTesting:ADS.test}).then(()=>{loaded=true}).catch(()=>{}).finally(()=>{loading=null});return loading}
+ function load(){if(!ready||loaded)return Promise.resolve();if(!loading)loading=A.prepareInterstitial({adId:adUnit(),isTesting:ADS.test}).then(()=>{loaded=true}).catch(()=>{}).finally(()=>{loading=null});return loading}
  async function init(){
   if(!A)return;
   try{
+   // vraies pubs seulement dans la version Google Play (versionName sans « -test ») ; en cas de doute : pubs de test
+   try{const i=await CAP.Plugins.App.getInfo();ADS.test=!i||!i.version||/test/i.test(i.version)}catch(e){ADS.test=true}
    let c=await A.requestConsentInfo();                       // formulaire de consentement Google (RGPD) au besoin
    if(c.isConsentFormAvailable&&c.status==='REQUIRED')c=await A.showConsentForm();
    privacy=c.privacyOptionsRequirementStatus==='REQUIRED';
