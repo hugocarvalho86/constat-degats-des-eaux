@@ -2048,6 +2048,24 @@ document.addEventListener('change',async e=>{
    APK de test (debug, version « 1.1-test ») : pubs de TEST Google. AAB Google Play (release) : vraies pubs du compte AdMob vitfix.applis.
    Ne jamais cliquer sur ses propres vraies pubs (risque de suspension du compte AdMob).
    L'identifiant d'APPLICATION AdMob est posé par scripts/patch-android.mjs (ADMOB_APP_ID_TEST / ADMOB_APP_ID_PROD). */
+/* ================= Mesure d'audience : Firebase Analytics, appli Android seulement, et seulement après consentement =================
+   Le formulaire Google (UMP) enregistre le choix au format IAB TCF ; le module natif Tcf le lit.
+   Mesure activée si : RGPD non applicable, ou finalités 1 et (8 ou 9) acceptées et fournisseur Google (755) accepté.
+   Aucune donnée saisie n'est envoyée : seulement le type de document ouvert et la création d'un PDF. */
+const Stats=(()=>{
+ const P=NATIVE&&CAP.Plugins||{},F=P.FirebaseAnalytics,T=P.Tcf;let on=false;
+ const bit=(s,n)=>!!s&&s.length>=n&&s[n-1]==='1';
+ async function apply(){
+  if(!F)return;let ok=false;
+  try{if(T){const t=await T.get();ok=t.gdprApplies===0||(bit(t.purposeConsents,1)&&(bit(t.purposeConsents,8)||bit(t.purposeConsents,9))&&bit(t.vendorConsents,755))}}catch(e){ok=false}
+  on=ok;
+  try{await F.setConsent({type:'ANALYTICS_STORAGE',status:ok?'GRANTED':'DENIED'});await F.setEnabled({enabled:ok})}catch(e){}
+  if(ok&&view&&view!=='home')screen(view);
+ }
+ const ev=(name,params)=>{if(on&&F)F.logEvent({name,params:params||{}}).catch(()=>{})};
+ const screen=n=>{if(on&&F)F.setCurrentScreen({screenName:n}).catch(()=>{})};
+ return {apply,ev,screen};
+})();
 const ADS={enabled:!window.ATTEST_NOADS,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:window.ATTEST_ADS_PROD||'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
 const adUnit=()=>ADS.test?ADS.interstitialTest:ADS.interstitialProd;
 const Ads=(()=>{
@@ -2063,6 +2081,7 @@ const Ads=(()=>{
    let c=await A.requestConsentInfo();                       // formulaire de consentement Google (RGPD) au besoin
    if(c.isConsentFormAvailable&&c.status==='REQUIRED')c=await A.showConsentForm();
    privacy=c.privacyOptionsRequirementStatus==='REQUIRED';
+   Stats.apply();                                           // mesure d'audience : selon le choix de consentement
    if(view==='home')render();
    if(!c.canRequestAds)return;                               // pas de consentement : aucune pub
    await A.initialize({initializeForTesting:ADS.test});      // le SDK applique lui-même le choix (pubs non personnalisées si refus)
@@ -2083,14 +2102,68 @@ const Ads=(()=>{
   });
   load();
  }
- const showPrivacy=()=>A?A.showPrivacyOptionsForm().catch(()=>{}):Promise.resolve();
+ const showPrivacy=()=>A?A.showPrivacyOptionsForm().catch(()=>{}).then(()=>Stats.apply()):Promise.resolve();
  return {init,gate,hasPrivacy:()=>privacy,showPrivacy};
 })();
+
+/* ================= Rappels d'agenda : « Ajouter à mon agenda » (pas de notification ni de permission) =================
+   Android (appli) : ouvre l'agenda du téléphone avec l'événement prérempli (module natif CalendarIntent).
+   Ailleurs (iPhone, ordinateur, version web) : fichier .ics avec deux alarmes (3 jours avant et la veille à 9 h). */
+const Agenda=(()=>{
+ const P=(NATIVE&&CAP.Plugins)||{},TODAY=new Date().toISOString().slice(0,10);
+ const e=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ const frd=iso=>{const [y,m,dd]=iso.split('-');return `${dd}/${m}/${y}`};
+ const next=iso=>{const t=new Date(iso+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return t.toISOString().slice(0,10)};
+ const escI=s=>String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+ const fold=l=>{const out=[];let s=l;while(s.length>60){out.push(s.slice(0,60));s=' '+s.slice(60)}out.push(s);return out.join('\r\n')};
+ function ics(r){
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,''),uid=Date.now()+'-'+Math.random().toString(36).slice(2)+'@vitfix.fr';
+  const al=(trg)=>['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+escI(r.t),'TRIGGER:'+trg,'END:VALARM'];
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Vitfix//Rappels//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+stamp,
+   'DTSTART;VALUE=DATE:'+r.date.replace(/-/g,''),'DTEND;VALUE=DATE:'+next(r.date).replace(/-/g,''),'SUMMARY:'+escI(r.t),'DESCRIPTION:'+escI(r.desc),'TRANSP:TRANSPARENT',
+   ...al('-P2DT15H'),...al('-PT15H'),'END:VEVENT','END:VCALENDAR'].map(fold).join('\r\n')+'\r\n';
+ }
+ const ok=list=>(list||[]).filter(r=>r&&r.date&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&r.date>=TODAY);
+ function html(list){
+  const L=ok(list);if(!L.length)return '';
+  return `<div class="note agenda" style="margin-top:16px"><p><b>📅 Ne laissez pas passer la date</b></p><p>Ajoutez ${L.length>1?'ces dates':'cette date'} à l’agenda de votre téléphone pour être prévenu à temps.</p>
+${L.map((r,i)=>`<button type="button" class="btn" data-agenda="${i}" style="width:100%;margin-top:8px;min-height:48px;height:auto;padding:8px 12px;text-align:center">${e(r.t)}<br><span style="font-weight:500;font-size:14px">${frd(r.date)} — ajouter à mon agenda</span></button>`).join('')}
+<p class="agmsg" style="font-size:13px;margin-top:8px"></p></div>`;
+ }
+ async function add(r,msg){
+  const say=t=>{if(msg)msg.innerHTML=t};
+  if(P.CalendarIntent){try{await P.CalendarIntent.insert({title:r.t,description:r.desc||'',date:r.date});say('L’agenda s’est ouvert : vérifiez puis enregistrez l’événement.');return}catch(x){}}
+  const txt=ics(r),name='rappel-'+r.date+'.ics';
+  if(P.Filesystem&&P.Share){try{const w=await P.Filesystem.writeFile({path:name,data:txt,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:r.t,files:[w.uri],dialogTitle:'Ajouter à l’agenda'});say('Choisissez votre application d’agenda.');return}catch(x){}}
+  const url=URL.createObjectURL(new Blob([txt],{type:'text/calendar;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  say('Fichier « '+e(name)+' » téléchargé : ouvrez-le pour ajouter l’événement à votre agenda (rappels 3 jours avant et la veille).');
+ }
+ function bind(list,root){const L=ok(list);(root||document).querySelectorAll('[data-agenda]').forEach(b=>{const r=L[+b.dataset.agenda];const m=b.parentElement.querySelector('.agmsg');b.onclick=()=>{add(r,m);try{Stats.ev('rappel_agenda',{})}catch(x){}}})}
+ return {html,bind,ics};
+})();
+/* Dates à rappeler pour le document ouvert (calculs déjà faits par chaque document) */
+const addD=(iso,n)=>{const t=isoD(iso);return t?isoS(new Date(t.getTime()+n*864e5)):null};
+function reminders(){
+ const id=view,L=[],sent=d.le||today,R=(t,date,desc)=>{if(date)L.push({t,date,desc})};
+ try{
+ if(id==='demeure'){const n=+(d.delai||15);R('Mise en demeure : fin du délai laissé',addD(sent,n+3),`Fin du délai de ${n} jours laissé à ${clean1(d.dnom)||'votre destinataire'} (environ 3 jours d’acheminement compris). Sans réponse : relancez, puis conciliateur de justice ou tribunal.`)}
+ if(id==='travaux'){const n=+(d.delai||15);R('Demande de travaux : fin du délai',addD(sent,n+3),`Fin du délai laissé au propriétaire (${n} jours, acheminement compris). Sans réponse : relancez, puis ADIL ou commission départementale de conciliation.`)}
+ if(id==='retract'){const i=retractInfo();if(i.fin&&!i.late)R('Dernier jour pour se rétracter',i.fin,'La lettre de rétractation doit être envoyée au plus tard ce jour-là.')}
+ if(id==='preavis'&&d.recep)R('Fin du préavis : remise des clés',preavisCalc().fin,'Fin du préavis de départ du logement : prévoyez l’état des lieux de sortie et la remise des clés.');
+ if(id==='depot'&&d.cles)R('Dépôt de garantie : date limite de restitution',depotCalc().lim,'Le bailleur doit avoir rendu le dépôt de garantie. Sinon : relance, puis conciliateur de justice ou commission départementale de conciliation.');
+ if(id==='demission')R('Fin du préavis de démission (indicative)',demCalc().fin,'Date indicative de fin du préavis : à confirmer avec votre employeur.');
+ if(id==='fps')R('Dernier jour pour contester le FPS',fpsFin(),'Le recours administratif préalable (RAPO) doit être envoyé à la commune ou à la société indiquée sur l’avis de paiement.');
+ if(id==='recours')R('Date limite du recours',recoursFin(),'Le recours amiable doit être envoyé avant cette date.');
+ if(id==='energie')R('Sans réponse : saisir le médiateur',addMonths(sent,2),'Deux mois après la réclamation, sans réponse satisfaisante, vous pouvez saisir gratuitement le médiateur (énergie ou eau).');
+ if(id==='ast'&&d.fin)R('Fin de l’autorisation de sortie du territoire',d.fin,`L’autorisation de sortie du territoire${clean1(d.e_prenom)?' de '+clean1(d.e_prenom):''} n’est plus valable après cette date.`);
+ }catch(x){}
+ return L;
+}
 
 /* ================= Moteur d'écrans ================= */
 let view='home',doc=null,d={},cur=0;
 function open(id){
- view=id;doc=DOCS[id];
+ view=id;doc=DOCS[id];Stats.screen(id);Stats.ev('ouvrir_document',{document:id});
  try{d=JSON.parse(localStorage.getItem(doc.key)||'{}')}catch(e){d={}}
  doc.init(d);cur=Math.min(+(d._step||0),doc.steps.length-1);
 }
@@ -2154,7 +2227,7 @@ function recapHTML(){
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox">${NATIVE?'Choisissez Gmail ou Outlook dans la liste : le PDF est joint automatiquement.':'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
- </div>${FLAT.some(f=>f.k==='dnom')?lrarBlock():''}${doc.recapAfter?doc.recapAfter():''}<div id="out"></div>`;
+ </div>${Agenda.html(reminders())}${FLAT.some(f=>f.k==='dnom')?lrarBlock():''}${doc.recapAfter?doc.recapAfter():''}<div id="out"></div>`;
 }
 
 document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k||!doc)return;
@@ -2226,8 +2299,9 @@ async function saveBytes(bytes,model){
  const url=webDownload(bytes,model);return 'Si le téléchargement ne démarre pas, <a href="'+url+'" target="_blank" rel="noopener">ouvrez le PDF ici</a>.';
 }
 function bindRecap(){
+ Agenda.bind(reminders());
  const out=$('#out'),say=(t,err)=>out.innerHTML=`<div class="msg${err?' err':''}">${t}</div>`;
- const busy=async(b,model,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Un instant…';try{await Ads.gate()}catch(e){}b.textContent='Génération…';try{await fn(await doc.build(model))}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
+ const busy=async(b,model,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Un instant…';try{await Ads.gate()}catch(e){}b.textContent='Génération…';try{await fn(await doc.build(model));Stats.ev('document_pdf',{document:view})}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
  $('#dl').onclick=e=>busy(e.currentTarget,false,async b=>say(await saveBytes(b,false)));
  const mb=$('#model');if(mb)mb.onclick=e=>busy(e.currentTarget,true,async b=>say(await saveBytes(b,true)+' Imprimez aussi le Cerfa vierge (service-public.fr) et recopiez-y le texte à la main.'));
  $('#mail').onclick=e=>busy(e.currentTarget,false,async b=>say(await sendMail(b,doc.mail(),'Envoyer le document')));

@@ -446,7 +446,7 @@ function recapHTML(){
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox" id="mailinfo">${NATIVE?M().mailInfo:'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
- </div>${M().recapAfter?M().recapAfter():''}${lrarHTML()}${devisHTML()}<div id="out"></div>`;
+ </div>${M().recapAfter?M().recapAfter():''}${Agenda.html(reminders())}${lrarHTML()}${devisHTML()}<div id="out"></div>`;
 }
 /* Envoi en recommandé avec AR par un service en ligne (déclaration et contestation ; l'utilisateur paie sur le site du service) */
 const LRAR_LINKS=[['La Poste','https://www.laposte.fr/envoi-courrier-en-ligne'],['Merci Facteur','https://www.merci-facteur.com/lettres/lrar/lettre-recommandee.php']];
@@ -460,6 +460,52 @@ ${a?`<pre id="lrar-addr" style="white-space:pre-wrap;font:inherit;background:var
 <button type="button" class="btn pri" id="lrar-dl" style="width:100%;margin-bottom:8px">1. Enregistrer le PDF</button>
 <div style="display:flex;gap:8px">${LRAR_LINKS.map(([n,u])=>`<a class="btn" style="display:flex;align-items:center;justify-content:center;text-decoration:none;text-align:center" href="${u}" target="_blank" rel="noopener">2. ${n}</a>`).join('')}</div>
 <p style="font-size:12.5px;color:var(--mute);margin-top:8px">Services indépendants de Vitfix, payants. Gardez la preuve de dépôt et l’accusé de réception avec votre copie de la lettre.</p></div>`;
+}
+/* ================= Rappels d'agenda : « Ajouter à mon agenda » (pas de notification ni de permission) =================
+   Android (appli) : ouvre l'agenda du téléphone avec l'événement prérempli (module natif CalendarIntent).
+   Ailleurs (iPhone, ordinateur, version web) : fichier .ics avec deux alarmes (3 jours avant et la veille à 9 h). */
+const Agenda=(()=>{
+ const P=(NATIVE&&CAP.Plugins)||{},TODAY=new Date().toISOString().slice(0,10);
+ const e=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+ const frd=iso=>{const [y,m,dd]=iso.split('-');return `${dd}/${m}/${y}`};
+ const next=iso=>{const t=new Date(iso+'T12:00:00Z');t.setUTCDate(t.getUTCDate()+1);return t.toISOString().slice(0,10)};
+ const escI=s=>String(s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');
+ const fold=l=>{const out=[];let s=l;while(s.length>60){out.push(s.slice(0,60));s=' '+s.slice(60)}out.push(s);return out.join('\r\n')};
+ function ics(r){
+  const stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d+/,''),uid=Date.now()+'-'+Math.random().toString(36).slice(2)+'@vitfix.fr';
+  const al=(trg)=>['BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+escI(r.t),'TRIGGER:'+trg,'END:VALARM'];
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Vitfix//Rappels//FR','CALSCALE:GREGORIAN','METHOD:PUBLISH','BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+stamp,
+   'DTSTART;VALUE=DATE:'+r.date.replace(/-/g,''),'DTEND;VALUE=DATE:'+next(r.date).replace(/-/g,''),'SUMMARY:'+escI(r.t),'DESCRIPTION:'+escI(r.desc),'TRANSP:TRANSPARENT',
+   ...al('-P2DT15H'),...al('-PT15H'),'END:VEVENT','END:VCALENDAR'].map(fold).join('\r\n')+'\r\n';
+ }
+ const ok=list=>(list||[]).filter(r=>r&&r.date&&/^\d{4}-\d\d-\d\d$/.test(r.date)&&r.date>=TODAY);
+ function html(list){
+  const L=ok(list);if(!L.length)return '';
+  return `<div class="note agenda" style="margin-top:16px"><p><b>📅 Ne laissez pas passer la date</b></p><p>Ajoutez ${L.length>1?'ces dates':'cette date'} à l’agenda de votre téléphone pour être prévenu à temps.</p>
+${L.map((r,i)=>`<button type="button" class="btn" data-agenda="${i}" style="width:100%;margin-top:8px;min-height:48px;height:auto;padding:8px 12px;text-align:center">${e(r.t)}<br><span style="font-weight:500;font-size:14px">${frd(r.date)} — ajouter à mon agenda</span></button>`).join('')}
+<p class="agmsg" style="font-size:13px;margin-top:8px"></p></div>`;
+ }
+ async function add(r,msg){
+  const say=t=>{if(msg)msg.innerHTML=t};
+  if(P.CalendarIntent){try{await P.CalendarIntent.insert({title:r.t,description:r.desc||'',date:r.date});say('L’agenda s’est ouvert : vérifiez puis enregistrez l’événement.');return}catch(x){}}
+  const txt=ics(r),name='rappel-'+r.date+'.ics';
+  if(P.Filesystem&&P.Share){try{const w=await P.Filesystem.writeFile({path:name,data:txt,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:r.t,files:[w.uri],dialogTitle:'Ajouter à l’agenda'});say('Choisissez votre application d’agenda.');return}catch(x){}}
+  const url=URL.createObjectURL(new Blob([txt],{type:'text/calendar;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  say('Fichier « '+e(name)+' » téléchargé : ouvrez-le pour ajouter l’événement à votre agenda (rappels 3 jours avant et la veille).');
+ }
+ function bind(list,root){const L=ok(list);(root||document).querySelectorAll('[data-agenda]').forEach(b=>{const r=L[+b.dataset.agenda];const m=b.parentElement.querySelector('.agmsg');b.onclick=()=>{add(r,m);try{Stats.ev('rappel_agenda',{})}catch(x){}}})}
+ return {html,bind,ics};
+})();
+/* Dates à rappeler : délai légal de déclaration à l'assureur (art. L113-2 du code des assurances) */
+const ouvres=(iso,n)=>{const t=new Date(iso+'T12:00:00Z');let k=0;while(k<n){t.setUTCDate(t.getUTCDate()+1);const w=t.getUTCDay();if(w!==0&&w!==6)k++}return t.toISOString().slice(0,10)};
+function reminders(){
+ const L=[];try{
+ if(mode==='constat'&&d.date)L.push({t:'Envoyer le constat à mon assureur',date:ouvres(d.date,5),desc:'Le sinistre doit être déclaré à l’assureur dans les 5 jours ouvrés (votre contrat peut prévoir plus long). Joignez le constat amiable signé.'});
+ if(mode==='decl'&&d.type){
+  if(d.type==='catnat'){if(d.catdate){const x=new Date(d.catdate+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+30);L.push({t:'Date limite de déclaration (catastrophe naturelle)',date:x.toISOString().slice(0,10),desc:'30 jours après la publication de l’arrêté de catastrophe naturelle au Journal officiel.'})}}
+  else{const st=d.decouv||d.date;if(st)L.push({t:'Date limite pour déclarer le sinistre',date:ouvres(st,d.type==='vol'?2:5),desc:(d.type==='vol'?'Vol : 2 jours ouvrés':'5 jours ouvrés')+' à partir de la découverte du sinistre (minimum légal, votre contrat peut prévoir plus long).'})}
+ }}catch(x){}
+ return L;
 }
 function devisHTML(){
  if(mode==='decl'||mode==='contest'){if(!clean1(d.dombat||d.args)||isVol(d))return '';
@@ -750,6 +796,7 @@ const buildPDF=()=>M().build();
 const fname=()=>M().fname();
 function setMode(m){
  mode=m;try{localStorage.setItem(MODEKEY,m)}catch(e){}
+ if(typeof Stats!=='undefined')Stats.screen(m);
  const C=MODES[m];KEY=C.key;d={};try{d=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}if(!d.le)d.le=today;
  STEPS=C.steps;FLAT=mkFlat(STEPS);cur=Math.min(+(d._step||0),STEPS.length-1);
  IDB=IDBS[m];photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();
@@ -810,8 +857,9 @@ async function sendMail(bytes,parts,dialog){
 }
 
 function bindRecap(){
+ Agenda.bind(reminders());
  const out=$('#out'),say=(t,err)=>out.innerHTML=`<div class="msg${err?' err':''}">${t}</div>`;
- const busy=async(b,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Génération…';try{await fn(await buildPDF())}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
+ const busy=async(b,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Génération…';try{await fn(await buildPDF());Stats.ev('document_pdf',{document:mode})}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
  $('#dl').onclick=e=>busy(e.currentTarget,async bytes=>{
   if(NATIVE){
    try{await nativeSave(bytes);say(M().saved(fname()));return}
@@ -826,7 +874,34 @@ function bindRecap(){
 }
 function clean1(s){return String(s||'').replace(/\s+/g,' ').trim()}
 
+/* Mesure d'audience : Firebase Analytics, appli Android seulement, et seulement si l'utilisateur l'accepte (choix gardé dans cdde_stats).
+   Aucune donnée saisie n'est envoyée : seulement l'onglet ouvert et la création d'un PDF. Refuser est aussi simple qu'accepter. */
+const Stats=(()=>{
+ const F=NATIVE&&CAP.Plugins&&CAP.Plugins.FirebaseAnalytics,K='cdde_stats';let on=false;
+ const get=()=>{try{return localStorage.getItem(K)}catch(e){return null}};
+ async function apply(){on=!!F&&get()==='oui';if(!F)return;try{await F.setConsent({type:'ANALYTICS_STORAGE',status:on?'GRANTED':'DENIED'});await F.setEnabled({enabled:on})}catch(e){}}
+ function ask(){
+  if(!F||document.getElementById('statsbox'))return;
+  const b=document.createElement('div');b.id='statsbox';b.setAttribute('role','dialog');b.setAttribute('aria-label','Mesure d’audience');
+  b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--card,#fff);border-top:1px solid var(--line,#d8e0e8);box-shadow:0 -6px 24px rgba(0,0,0,.15);padding:16px 16px calc(16px + env(safe-area-inset-bottom));font-size:14px';
+  b.innerHTML='<p style="margin:0 0 6px"><b>Nous aider à améliorer l’appli ?</b></p><p style="margin:0 0 12px">Avec votre accord, l’appli mesure sa fréquentation (écrans ouverts, PDF créés) avec Google Analytics pour Firebase. <b>Le contenu de vos constats et déclarations n’est jamais envoyé.</b> Vous pouvez changer d’avis à tout moment (lien « Mesure d’audience » en bas de l’écran).</p><div style="display:flex;gap:10px"><button type="button" class="btn" id="stno">Refuser</button><button type="button" class="btn" id="styes">Accepter</button></div>';
+  document.body.appendChild(b);
+  const set=v=>{try{localStorage.setItem(K,v)}catch(e){}b.remove();apply();link()};
+  b.querySelector('#stno').onclick=()=>set('non');b.querySelector('#styes').onclick=()=>set('oui');
+ }
+ function link(){
+  if(!F)return;let l=document.getElementById('statslink');
+  if(!l){l=document.createElement('p');l.id='statslink';l.style.cssText='text-align:center;font-size:12.5px;margin:18px 0 0;color:var(--mute,#55697a)';document.querySelector('main').appendChild(l)}
+  l.innerHTML=`Mesure d’audience : ${get()==='oui'?'acceptée':'refusée'} — <a href="#" id="statschg">modifier</a>`;
+  l.querySelector('#statschg').onclick=e=>{e.preventDefault();ask()};
+ }
+ function init(){if(!F)return;apply();link();if(get()===null)setTimeout(ask,1200)}
+ const ev=(name,params)=>{if(on&&F)F.logEvent({name,params:params||{}}).catch(()=>{})};
+ const screen=n=>{if(on&&F)F.setCurrentScreen({screenName:n}).catch(()=>{})};
+ return {init,ev,screen};
+})();
 setMode(mode);
+Stats.init();
 window.addEventListener('resize',()=>{if(STEPS[cur].sign)STEPS[cur].sign.forEach(setupSig)});
 window.__cdde={build:()=>buildPDF(),letter:()=>dletter(),cletter:()=>cletter(),setMode};
 
