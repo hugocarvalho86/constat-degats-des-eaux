@@ -1651,7 +1651,7 @@ document.addEventListener('change',async e=>{
    APK de test (debug, version « 1.1-test ») : pubs de TEST Google. AAB Google Play (release) : vraies pubs du compte AdMob vitfix.applis.
    Ne jamais cliquer sur ses propres vraies pubs (risque de suspension du compte AdMob).
    L'identifiant d'APPLICATION AdMob est posé par scripts/patch-android.mjs (ADMOB_APP_ID_TEST / ADMOB_APP_ID_PROD). */
-const ADS={enabled:!window.ATTEST_NOADS,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
+const ADS={enabled:!window.ATTEST_NOADS,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:window.ATTEST_ADS_PROD||'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
 const adUnit=()=>ADS.test?ADS.interstitialTest:ADS.interstitialProd;
 const Ads=(()=>{
  const A=NATIVE&&ADS.enabled&&CAP.Plugins&&CAP.Plugins.AdMob;
