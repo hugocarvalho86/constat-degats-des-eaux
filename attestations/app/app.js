@@ -16,6 +16,9 @@ const CATALOG=[
  {id:'dette',t:'Reconnaissance de dette',s:'Prêt entre particuliers, remboursement en une fois ou par mois'},
  {id:'animal',t:'Cession d’un chien ou d’un chat',s:'Vente ou don : l’attestation de cession signée par les deux'},
  {id:'heberg',t:'Attestation d’hébergement',s:'Quelqu’un habite chez vous : pour la mairie, la préfecture, la CAF…'},
+ {id:'retract',t:'Lettre de rétractation',s:'Achat en ligne ou démarchage : 14 jours pour changer d’avis'},
+ {id:'resil',t:'Lettre de résiliation',s:'Box, mobile, assurance, mutuelle, salle de sport…'},
+ {id:'vol',t:'Indemnisation vol retardé ou annulé',s:'Jusqu’à 600 € par passager (règlement européen 261/2004)'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -577,7 +580,280 @@ const ANIMAL={
   sigs:[{key:'sig',label:'Le cédant',name:pName('a_')},{key:'sigb',label:'L’acquéreur',name:pName('b_')}],docTitle:`Attestation de cession d’un ${ESP()}`})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL};
+/* ================= Lettres simples (rétractation, résiliation, vol) : outils communs ================= */
+const SENDER=()=>[
+ {k:'civ',l:'Vous êtes',ty:'radio',o:CIV},
+ {row:[{k:'prenom',l:'Prénom',ty:'text',ac:'given-name'},{k:'nom',l:'Nom',ty:'text',ac:'family-name'}]},
+ {k:'adr',l:'Adresse',ty:'text',ac:'address-line1'},
+ {row:[{k:'cp',l:'Code postal',ty:'tel',ac:'postal-code'},{k:'ville',l:'Commune',ty:'text',ac:'address-level2'}]},
+ {row:[{k:'tel',l:'Téléphone',ty:'tel',ac:'tel',h:'Facultatif'},{k:'mail',l:'Mail',ty:'email',ac:'email',h:'Facultatif'}]}];
+const RECIP=(what,ex)=>[
+ {k:'dnom',l:`Nom ${what}`,ty:'text',h:ex},
+ {k:'dadr',l:'Adresse (service client, service résiliation…)',ty:'text',h:'Elle figure dans vos conditions générales, sur vos factures ou sur le site.'},
+ {row:[{k:'dcp',l:'Code postal',ty:'tel'},{k:'dville',l:'Commune',ty:'text'}]},
+ {k:'mailto',l:'Son mail',ty:'email',h:'Facultatif : pour envoyer aussi le PDF par mail.'}];
+const senderLines=()=>[fullName(),d.adr,[d.cp,d.ville].filter(Boolean).join(' '),d.tel&&'Tél. : '+d.tel,d.mail];
+const recipLines=()=>[d.dnom,d.dadr,[d.dcp,d.dville].filter(Boolean).join(' ')];
+const SALUT='Je vous prie d’agréer, Madame, Monsieur, l’expression de mes salutations distinguées.';
+const letterPreview=(objet,paras)=>`<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(objet)}</b></p><p>Madame, Monsieur,</p>${paras.map(p=>`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`;
+const letterMissing=()=>{const m=[];if(!d.nom||!d.prenom)m.push('vos nom et prénom');if(!d.adr||!d.ville)m.push('votre adresse');if(!d.dnom)m.push('destinataire');if(!d.sigt)m.push('signature');return m};
+/* Lettre créée de zéro : expéditeur à gauche, destinataire à droite, objet, paragraphes, signature, annexe photos */
+async function letterPDF(o){
+ const {PDFDocument,StandardFonts,rgb}=PDFLib;
+ const pdf=await PDFDocument.create();
+ const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+ const enc=encoder(font),W=595.28,H=841.89,M=62,TW=W-2*M,SZ=10.6,LH=15,C=rgb(.08,.08,.1);
+ let pg=pdf.addPage([W,H]),y=H-60;
+ const newPage=()=>{pg=pdf.addPage([W,H]);y=H-60};
+ const line=(s,f=font,x=M)=>{if(y<64)newPage();pg.drawText(s,{x,y,size:SZ,font:f,color:C});y-=LH};
+ const block=(arr,x=M)=>arr.filter(Boolean).forEach(s=>line(enc(clean1(s)),font,x));
+ block(senderLines());y-=8;
+ block(recipLines(),W/2+10);y-=10;
+ line(enc(`${clean1(d.faita)||clean1(d.ville)||'…'}, le ${fr(d.le)||'…'}`),font,W/2+10);y-=8;
+ if(o.rec!==false)line(enc('Lettre recommandée avec accusé de réception'),bold);
+ for(const s of wrap(enc('Objet : '+o.objet),bold,SZ,[TW]))line(s,bold);
+ y-=10;line(enc('Madame, Monsieur,'));y-=6;
+ for(const p of [...o.paras,SALUT]){for(const s of wrap(enc(clean1(p)),font,SZ,[TW]))line(s);y-=7}
+ y-=6;if(y<150)newPage();
+ const sx=W/2+10,s=sigImg('sig');
+ if(s){const im=await pdf.embedPng(s.u),k=Math.min(170/im.width,60/im.height);pg.drawImage(im,{x:sx,y:y-im.height*k,width:im.width*k,height:im.height*k});y-=im.height*k+16}
+ line(enc(fullName()),font,sx);
+ if(o.pj){y-=10;for(const s2 of wrap(enc(o.pj),font,9.5,[TW]))line(s2)}
+ const ph=o.ph||[];
+ for(let j=0;j<ph.length;j++){
+  if(j%2===0){pg=pdf.addPage([W,H]);pg.drawText(enc(o.annexTitle||'Pièces jointes'),{x:40,y:H-50,size:12,font:bold,color:C})}
+  const p=ph[j],im=await pdf.embedJpg(new Uint8Array(await p.blob.arrayBuffer()));
+  const top=H-75-(j%2)*370,bw=W-80,bh=330,k=Math.min(bw/im.width,bh/im.height),w=im.width*k,h=im.height*k;
+  pg.drawImage(im,{x:40+(bw-w)/2,y:top-bh+(bh-h)/2,width:w,height:h});
+  pg.drawText(enc('Pièce jointe '+(j+1)),{x:40,y:top-bh-13,size:9,font,color:C})}
+ pdf.setTitle(enc(o.objet));
+ return finish(pdf);
+}
+const letterSigStep=()=>({t:'Date et signature',fields:[{row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}],post:()=>sigHTML('Signez avec le doigt'),pads:[['sigT','sig']],recapRows:()=>[['Signature',d.sigt?'Oui':'Non']]});
+const lrarNote=()=>`<div class="note" style="margin-top:16px"><p><b>Pour avoir une preuve :</b> imprimez le PDF et envoyez-le en <b>lettre recommandée avec accusé de réception</b> (à La Poste ou en ligne). Le mail seul ne prouve pas la date de réception.</p></div>`;
+const fnDest=()=>{const n=fnPart(d.dnom);return n?'_'+n:''};
+
+/* Dates : jours fériés français, délai qui finit un samedi, dimanche ou jour férié → jour ouvrable suivant */
+const isoD=s=>{if(!s)return null;const [y,m,dd]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,dd))};
+const isoS=dt=>dt.toISOString().slice(0,10);
+function paques(y){const a=y%19,b=Math.floor(y/100),c=y%100,dd=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-dd-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=(h+l-7*m+114)%31+1;return Date.UTC(y,mo-1,da)}
+function ferie(dt){const md=isoS(dt).slice(5);if(['01-01','05-01','05-08','07-14','08-15','11-01','11-11','12-25'].includes(md))return true;
+ const p=paques(dt.getUTCFullYear()),D=864e5;return [p+D,p+39*D,p+50*D].includes(dt.getTime())}
+function finDelai(startIso,jours){const s=isoD(startIso);if(!s)return null;let e=new Date(s.getTime()+jours*864e5);while(e.getUTCDay()===0||e.getUTCDay()===6||ferie(e))e=new Date(e.getTime()+864e5);return isoS(e)}
+const JOURS=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+const frLong=iso=>{const t=isoD(iso);return t?`${JOURS[t.getUTCDay()]} ${fr(iso)}`:''};
+
+/* ================= Document 6 : lettre de rétractation ================= */
+const rStart=()=>d.rtype==='service'?d.cdate:d.recep;
+function retractInfo(){
+ const st=rStart();if(!st)return {html:`<div class="note"><p>Indiquez la date ${d.rtype==='service'?'de conclusion du contrat':'de réception'} : l’appli calcule la date limite pour vous rétracter.</p></div>`};
+ const fin=finDelai(st,14),late=today>fin;
+ return {fin,late,html:late?`<div class="note warn"><p><b>Attention : le délai de 14 jours semble dépassé</b> (il se terminait le ${esc(frLong(fin))}). Si le professionnel ne vous a pas informé de votre droit de rétractation, le délai est prolongé de 12 mois (article L. 221-20 du code de la consommation). Sinon, la rétractation risque d’être refusée.</p></div>`
+  :`<div class="note"><p><b>Date limite pour envoyer votre lettre : ${esc(frLong(fin))}</b> inclus (14 jours ${d.rtype==='service'?'après la conclusion du contrat':'après la réception'} ; un délai qui finit un samedi, un dimanche ou un jour férié est reporté au jour ouvrable suivant).</p></div>`};
+}
+function retractParas(){
+ const L=[],bien=d.rtype!=='service',ref=clean1(d.cmdref);
+ L.push(`Par la présente, je vous notifie ma décision de me rétracter du contrat portant sur ${clean1(d.cmd)||'…'}${ref?` (commande ou contrat n° ${ref})`:''}, conclu le ${fr(d.cdate)||'…'}${bien&&d.recep?` et reçu le ${fr(d.recep)}`:''}${d.canal==='domicile'?', à la suite d’un démarchage à mon domicile':''}.`);
+ L.push(`Je vous rappelle que je dispose d’un délai de quatorze jours pour exercer ce droit, sans avoir à motiver ma décision (article L. 221-18 du code de la consommation).`);
+ if(bien)L.push(`Je vous renverrai le bien au plus tard dans les quatorze jours suivant la présente lettre (article L. 221-23 du même code). Merci de m’indiquer l’adresse de retour si elle diffère de la vôtre.`);
+ L.push(`Conformément à l’article L. 221-24 du même code, je vous demande de me rembourser la totalité des sommes versées${clean1(d.prix)?`, soit ${eur(num(d.prix))}`:''}, frais de livraison initiaux compris, au plus tard dans les quatorze jours suivant la réception de la présente lettre, par le même moyen de paiement que celui utilisé pour l’achat.${bien?' Ce remboursement peut être différé jusqu’à la récupération du bien ou jusqu’à ce que je vous aie fourni une preuve de son expédition.':''}`);
+ return L;
+}
+const retractObjet=()=>`Exercice du droit de rétractation${clean1(d.cmdref)?' — commande n° '+clean1(d.cmdref):''}`;
+const RETRACT={
+ key:'attest_retract_v1',title:'Lettre de rétractation',sub:'14 jours pour changer d’avis',
+ init:x=>{if(!x.le)x.le=today;if(!x.rtype)x.rtype='bien';if(!x.canal)x.canal='distance'},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Après un achat <b>à distance</b> (internet, téléphone, catalogue) ou <b>hors établissement</b> (démarchage à domicile, sur le lieu de travail…), vous avez en principe <b>14 jours</b> pour changer d’avis, sans donner de raison (article L. 221-18 du code de la consommation).</p></div>
+ <div class="note warn"><ul>
+  <li>Pour un bien, le délai court à partir de sa <b>réception</b> ; pour un service, à partir de la <b>conclusion du contrat</b>.</li>
+  <li>Pas de rétractation, notamment, pour : les biens faits sur mesure ou personnalisés, les denrées périssables, les produits descellés qui ne peuvent être renvoyés pour des raisons d’hygiène, les contenus numériques déjà fournis avec votre accord, les voyages et hébergements à date fixe, les services pleinement exécutés avec votre accord (article L. 221-28). <b>Pas de rétractation non plus pour un achat sur une foire ou un salon.</b></li>
+  <li>Les frais de renvoi du bien peuvent rester à votre charge si le vendeur vous en a informé.</li>
+  <li><b>Envoyez la lettre en recommandé avec accusé de réception</b> avant la date limite : c’est la date d’envoi qui compte, gardez la preuve.</li></ul></div>`,fields:[]},
+  {t:'Votre achat',fields:[
+   {k:'canal',l:'Comment avez-vous acheté ?',ty:'radio',o:[['distance','À distance (internet, téléphone, courrier)'],['domicile','Lors d’un démarchage (domicile, travail…)']]},
+   {k:'rtype',l:'Il s’agit…',ty:'radio',o:[['bien','D’un bien (objet livré)'],['service','D’un service (abonnement, prestation, formation…)']]},
+   {k:'cmd',l:'Ce que vous avez acheté',ty:'text',h:'Exemple : « un aspirateur Dyson V15 », « un abonnement de 12 mois à… ».'},
+   {k:'cmdref',l:'N° de commande ou de contrat',ty:'text',h:'Facultatif, mais conseillé.'},
+   {row:[{k:'cdate',l:'Date de la commande / du contrat',ty:'date'},{k:'recep',l:'Date de réception',ty:'date'}],if:x=>x.rtype!=='service'},
+   {k:'cdate',l:'Date de conclusion du contrat',ty:'date',if:x=>x.rtype==='service'},
+   {k:'prix',l:'Montant payé (€)',ty:'text',h:'Facultatif.'}],
+   post:()=>`<div id="rinfo">${retractInfo().html}</div>`,live:['cdate','recep'],liveFn:()=>{const c=$('#rinfo');if(c)c.innerHTML=retractInfo().html}},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le vendeur',fields:RECIP('du vendeur (société)','Exemple : « Boulanger SA », « SFR ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>retractInfo().html+letterPreview(retractObjet(),retractParas()),
+ missing(){const m=letterMissing();if(!clean1(d.cmd))m.unshift('ce que vous avez acheté');if(!rStart())m.unshift(d.rtype==='service'?'date du contrat':'date de réception');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service client du vendeur',
+ recapAfter:lrarNote,
+ fname:()=>`Retractation${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:retractObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma lettre de rétractation, qui vous est également adressée par courrier recommandé avec accusé de réception.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:retractObjet(),paras:retractParas()})}
+};
+
+/* ================= Document 7 : lettre de résiliation ================= */
+const RTYPES=[['box','Box internet'],['mobile','Forfait mobile'],['auto','Assurance auto'],['habitation','Assurance habitation'],['mutuelle','Mutuelle santé'],['sport','Salle de sport'],['autre','Autre contrat']];
+const isAssur=()=>['auto','habitation','mutuelle'].includes(d.ctype);
+const isTel=()=>['box','mobile'].includes(d.ctype);
+function resilNote(){
+ const t=d.ctype;let p='';
+ if(isTel())p=`<p><b>Box et mobile :</b> la résiliation prend effet au plus tard <b>10 jours</b> après la réception de votre lettre, sauf si vous demandez une date plus tardive (article L. 224-39 du code de la consommation). Si vous êtes encore dans une <b>période d’engagement</b>, des frais peuvent être dus : en général, les mensualités restantes la 1<sup>re</sup> année, puis le quart des mensualités restantes la 2<sup>e</sup> année. ${t==='box'?'Pensez à rendre la box et le décodeur.':''} Si vous changez seulement d’opérateur mobile en gardant votre numéro, le nouvel opérateur s’occupe de tout avec le code RIO : pas besoin de lettre.</p>`;
+ else if(isAssur())p=`<p><b>Assurances et mutuelles :</b> après <b>un an</b> de contrat, vous pouvez résilier <b>à tout moment</b>, sans frais ; la résiliation prend effet un mois après la réception de votre demande (article L. 113-15-2 du code des assurances, article L. 221-10-2 du code de la mutualité pour une mutuelle). Avant un an, il faut en principe attendre l’échéance annuelle, sauf changement de situation prévu par la loi (déménagement, mariage, retraite…).${t!=='mutuelle'?' Pour une assurance auto ou l’assurance habitation d’un locataire, c’est souvent le <b>nouvel assureur</b> qui fait la démarche pour vous.':''} Si l’avis d’échéance vous est arrivé tard ou pas du tout, vous pouvez aussi résilier à l’échéance (loi Chatel).</p>`;
+ else if(t==='sport')p=`<p><b>Salle de sport :</b> les conditions dépendent de votre contrat (durée d’engagement, préavis, motifs légitimes comme un déménagement ou un problème de santé). Pour un contrat à reconduction tacite, le professionnel doit vous rappeler la date limite pour ne pas le renouveler (loi Chatel, article L. 215-1 du code de la consommation).</p>`;
+ else if(t)p=`<p>Vérifiez dans votre contrat la durée d’engagement et le préavis. Pour un contrat à reconduction tacite, le professionnel doit vous rappeler la date limite pour ne pas le renouveler (loi Chatel, article L. 215-1 du code de la consommation).</p>`;
+ return p?`<div class="note">${p}<p>Si vous avez souscrit en ligne, le professionnel doit aussi proposer une <b>résiliation en ligne</b> en quelques clics (fonction « résilier votre contrat »).</p></div>`:'';
+}
+const ctLabel=()=>d.ctype==='autre'?(clean1(d.autretype)||'contrat'):(RTYPES.find(x=>x[0]===d.ctype)||[,'contrat'])[1].toLowerCase();
+function resilParas(){
+ const L=[],ids=[clean1(d.numcontrat)&&`n° ${clean1(d.numcontrat)}`,clean1(d.numclient)&&`n° client ${clean1(d.numclient)}`].filter(Boolean).join(', ');
+ L.push(`Par la présente, je vous informe de ma décision de résilier mon contrat ${ctLabel()}${ids?` (${ids})`:''}${clean1(d.titulaire)?`, souscrit au nom de ${clean1(d.titulaire)}`:''}.`);
+ if(isAssur()&&d.anc==='plus')L.push(`Ce contrat ayant été souscrit il y a plus d’un an, je le résilie en application de ${d.ctype==='mutuelle'?'l’article L. 221-10-2 du code de la mutualité (ou, selon votre organisme, de l’article L. 113-15-2 du code des assurances ou L. 932-21-1 du code de la sécurité sociale)':'l’article L. 113-15-2 du code des assurances'}. La résiliation prend effet un mois après la réception de la présente lettre.`);
+ else if(isAssur()&&d.effet==='echeance')L.push(`Je vous demande de prendre en compte cette résiliation à la prochaine échéance annuelle du contrat.`);
+ if(isTel())L.push(`Conformément à l’article L. 224-39 du code de la consommation, cette résiliation doit prendre effet au plus tard dix jours après la réception de la présente lettre${d.effet==='date'&&d.effetdate?`, et je souhaite qu’elle prenne effet le ${fr(d.effetdate)}`:''}.`);
+ if(!(isAssur()&&d.anc==='plus')&&!isTel()&&!(isAssur()&&d.effet==='echeance')){
+  if(d.effet==='date'&&d.effetdate)L.push(`Je souhaite que cette résiliation prenne effet le ${fr(d.effetdate)}, ou à défaut à la première date possible compte tenu du préavis prévu au contrat.`);
+  else if(d.effet==='echeance')L.push(`Je vous demande de prendre en compte cette résiliation à la prochaine échéance du contrat.`);
+  else L.push(`Je vous remercie de prendre en compte cette résiliation dans les meilleurs délais, dans le respect du préavis prévu au contrat.`);
+ }
+ if(clean1(d.motif))L.push(`Motif : ${clean1(d.motif)}.`);
+ if(d.ctype==='box')L.push(`Merci de m’indiquer les modalités de restitution du matériel (box, décodeur).`);
+ L.push(`Je vous remercie de m’adresser une confirmation écrite de cette résiliation précisant sa date d’effet, et de cesser tout prélèvement après cette date${isAssur()?'. Le cas échéant, je vous remercie de me rembourser la part de cotisation correspondant à la période non couverte':''}.`);
+ return L;
+}
+const resilObjet=()=>`Résiliation de mon contrat ${ctLabel()}${clean1(d.numcontrat)?' n° '+clean1(d.numcontrat):''}`;
+const RESIL={
+ key:'attest_resil_v1',title:'Lettre de résiliation',sub:'Box, mobile, assurance, mutuelle, salle de sport…',
+ init:x=>{if(!x.le)x.le=today;if(!x.effet)x.effet='asap'},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À mettre fin à un contrat (box, mobile, assurance, mutuelle, salle de sport…) en gardant une preuve de la date de votre demande.</p></div>
+ <div class="note warn"><ul>
+  <li>Vérifiez d’abord votre contrat : durée d’engagement, préavis, adresse à utiliser pour résilier.</li>
+  <li>Beaucoup de contrats peuvent aussi être résiliés en ligne (« résilier votre contrat » sur le site), ce qui est aussi valable.</li>
+  <li>Les règles changent selon le contrat : l’appli rappelle les principales, sans remplacer la lecture de vos conditions générales.</li></ul></div>`,fields:[]},
+  {t:'Quel contrat ?',fields:[{k:'ctype',l:'Vous voulez résilier…',ty:'radio',o:RTYPES},{k:'autretype',l:'Quel contrat ?',ty:'text',h:'Exemple : « abonnement au magazine X ».',if:x=>x.ctype==='autre',sub:1}],post:resilNote},
+  {t:'Votre contrat',fields:[
+   {row:[{k:'numcontrat',l:'N° de contrat ou de ligne',ty:'text'},{k:'numclient',l:'N° client',ty:'text',h:'Facultatif'}]},
+   {k:'titulaire',l:'Titulaire du contrat, si ce n’est pas vous',ty:'text',h:'Facultatif.'},
+   {k:'anc',l:'Votre contrat a-t-il plus d’un an ?',ty:'radio',o:[['plus','Oui, plus d’un an'],['moins','Non, moins d’un an'],['nsp','Je ne sais pas']],if:()=>isAssur()},
+   {k:'effet',l:'Date d’effet souhaitée',ty:'radio',o:[['asap','Le plus tôt possible'],['date','À une date précise'],['echeance','À la prochaine échéance']]},
+   {k:'effetdate',l:'Date souhaitée',ty:'date',if:x=>x.effet==='date',sub:1},
+   {k:'motif',l:'Motif',ty:'text',h:'Facultatif : en général, vous n’avez pas à donner de motif. Utile pour un motif légitime (déménagement, perte d’emploi, santé…).'}]},
+  {t:'Vous',fields:SENDER()},
+  {t:'L’organisme',fields:RECIP('de l’opérateur, de l’assureur ou de la société','Exemple : « Free », « MAIF », « Basic-Fit ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>letterPreview(resilObjet(),resilParas()),
+ missing(){const m=letterMissing();if(!d.ctype)m.unshift('type de contrat');if(!clean1(d.numcontrat)&&!clean1(d.numclient))m.unshift('n° de contrat ou de client');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service résiliation de l’organisme',
+ recapAfter:lrarNote,
+ fname:()=>`Resiliation${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:resilObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma lettre de résiliation, qui vous est également adressée par courrier recommandé avec accusé de réception.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:resilObjet(),paras:resilParas()})}
+};
+
+/* ================= Document 8 : indemnisation vol retardé, annulé ou surréservé (CE 261/2004) ================= */
+// Petite table d'aéroports : code, ville, latitude, longitude, 1 = zone du règlement (UE, outre-mer, Suisse, Norvège, Islande)
+const AIRPORTS=[['CDG','Paris',49.0097,2.5479,1],['ORY','Paris-Orly',48.7262,2.3652,1],['BVA','Beauvais',49.4544,2.1128,1],['MRS','Marseille',43.4393,5.2214,1],['NCE','Nice',43.6584,7.2159,1],['LYS','Lyon',45.7256,5.0811,1],['TLS','Toulouse',43.6291,1.3638,1],['BOD','Bordeaux',44.8283,-0.7156,1],['NTE','Nantes',47.1532,-1.6107,1],['LIL','Lille',50.5619,3.0894,1],['MPL','Montpellier',43.5762,3.963,1],['SXB','Strasbourg',48.5383,7.6282,1],['BSL','Bâle-Mulhouse',47.59,7.5292,1],['BES','Brest',48.4479,-4.4185,1],['BIQ','Biarritz',43.4684,-1.5233,1],['AJA','Ajaccio',41.9236,8.8029,1],['BIA','Bastia',42.5527,9.4837,1],
+ ['PTP','Pointe-à-Pitre',16.2653,-61.5318,1],['FDF','Fort-de-France',14.591,-61.0032,1],['RUN','La Réunion',20.8871*-1,55.5103,1],['CAY','Cayenne',4.8198,-52.3604,1],['DZA','Mayotte',-12.8047,45.2811,1],
+ ['MAD','Madrid',40.4719,-3.5626,1],['BCN','Barcelone',41.2974,2.0833,1],['PMI','Palma',39.5517,2.7388,1],['LIS','Lisbonne',38.7742,-9.1342,1],['OPO','Porto',41.2481,-8.6814,1],['FAO','Faro',37.0144,-7.9659,1],['FCO','Rome',41.8003,12.2389,1],['MXP','Milan',45.6306,8.7281,1],['VCE','Venise',45.5053,12.3519,1],['NAP','Naples',40.886,14.2908,1],['AMS','Amsterdam',52.3105,4.7683,1],['BRU','Bruxelles',50.9014,4.4844,1],['CRL','Charleroi',50.4592,4.4538,1],['FRA','Francfort',50.0379,8.5622,1],['MUC','Munich',48.3538,11.7861,1],['BER','Berlin',52.3667,13.5033,1],['DUB','Dublin',53.4213,-6.2701,1],['ATH','Athènes',37.9364,23.9445,1],['VIE','Vienne',48.1103,16.5697,1],['CPH','Copenhague',55.618,12.656,1],['ARN','Stockholm',59.6519,17.9186,1],['PRG','Prague',50.1008,14.26,1],['WAW','Varsovie',52.1657,20.9671,1],['BUD','Budapest',47.4298,19.2611,1],['HEL','Helsinki',60.3172,24.9633,1],['GVA','Genève',46.2381,6.109,1],['ZRH','Zurich',47.4647,8.5492,1],['OSL','Oslo',60.1976,11.1004,1],['KEF','Reykjavik',63.985,-22.6056,1],
+ ['LHR','Londres-Heathrow',51.47,-0.4543,0],['LGW','Londres-Gatwick',51.1537,-0.1821,0],['STN','Londres-Stansted',51.885,0.235,0],['RAK','Marrakech',31.6069,-8.0363,0],['CMN','Casablanca',33.3675,-7.5898,0],['TUN','Tunis',36.851,10.2272,0],['DJE','Djerba',33.875,10.7755,0],['ALG','Alger',36.691,3.2154,0],['IST','Istanbul',41.2753,28.7519,0],['DXB','Dubaï',25.2532,55.3657,0],['JFK','New York',40.6413,-73.7781,0],['YUL','Montréal',45.4706,-73.7408,0],['DSS','Dakar',14.67,-17.073,0],['ABJ','Abidjan',5.2614,-3.9263,0],['CAI','Le Caire',30.1219,31.4056,0],['BKK','Bangkok',13.69,100.7501,0]];
+const findAirport=s=>{const t=clean1(s);if(!t)return null;const code=(t.toUpperCase().match(/\b[A-Z]{3}\b/g)||[]).map(c=>AIRPORTS.find(a=>a[0]===c)).find(Boolean);if(code)return code;
+ const N=x=>x.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[-’']/g,' ');const n=N(t);
+ return AIRPORTS.filter(a=>n.includes(N(a[1]))).sort((x,y)=>y[1].length-x[1].length)[0]||AIRPORTS.find(a=>n.includes(N(a[1]).split(' ')[0]))||null};
+const gcKm=(a,b)=>{const R=6371,r=Math.PI/180,dl=(b[2]-a[2])*r,dg=(b[3]-a[3])*r,x=Math.sin(dl/2)**2+Math.cos(a[2]*r)*Math.cos(b[2]*r)*Math.sin(dg/2)**2;return Math.round(2*R*Math.asin(Math.sqrt(x)))};
+function volCalc(){
+ const A=findAirport(d.dep),B=findAirport(d.arr),auto=A&&B?gcKm(A,B):null;
+ const dist=num(d.dist)>0?num(d.dist):auto;
+ const intra=A&&B?!!(A[4]&&B[4]):d.intraue==='oui';
+ const depZone=A?!!A[4]:null;
+ const nb=Math.max(1,parseInt(d.nbpax)||1);
+ let base=0,why='',ok=true,half=false;
+ if(dist)base=dist<=1500?250:(intra||dist<=3500)?400:600;
+ const lim=dist<=1500?2:(intra||dist<=3500)?3:4;
+ const h=num(d.retard);
+ if(d.pb==='retard'){if(!(h>=3)){ok=false;why='Un retard de moins de 3 heures à l’arrivée ne donne pas droit à une indemnisation.'}else if(dist>3500&&!intra&&h<4)half=true}
+ else if(d.pb==='annule'){const rr=num(d.reachretard);if(d.prevenu==='plus14'){ok=false;why='Prévenu plus de 14 jours avant le départ : pas d’indemnisation en principe (seulement le remboursement ou un autre vol).'}else if(d.reach==='oui'&&rr>=0&&((d.prevenu==='moins7'&&rr<2)||(d.prevenu==='7a14'&&rr<4))){ok=false;why=d.prevenu==='moins7'?'Prévenu moins de 7 jours avant et réacheminé avec moins de 2 h de retard à l’arrivée : pas d’indemnisation en principe, si l’autre vol ne partait pas plus d’1 h avant le vôtre (article 5 du règlement).':'Prévenu 7 à 14 jours avant et réacheminé avec moins de 4 h de retard à l’arrivée : pas d’indemnisation en principe, si l’autre vol ne partait pas plus de 2 h avant le vôtre (article 5 du règlement).'}else if(d.reach==='oui'&&num(d.reachretard)>=0&&num(d.reachretard)<=lim)half=true}
+ else if(d.pb==='refus'){if(d.reach==='oui'&&num(d.reachretard)>=0&&num(d.reachretard)<=lim)half=true}
+ const each=ok&&dist?(half?base/2:base):0;
+ return {A,B,auto,dist,intra,depZone,nb,base,each,total:each*nb,ok,why,half,lim,eachS:eur(each),totalS:eur(each*nb)};
+}
+function volInfo(){
+ const c=volCalc();let h='';
+ if(c.auto)h+=`<p>Distance estimée entre ${esc(c.A[1])} (${c.A[0]}) et ${esc(c.B[1])} (${c.B[0]}) : <b>${c.auto.toLocaleString('fr-FR')} km</b>${c.intra?' (vol dans la zone européenne)':''}.</p>`;
+ else if(!num(d.dist))h+=`<p>Aéroports non reconnus : indiquez la distance en kilomètres (un site de calcul de distance entre aéroports vous la donne).</p>`;
+ if(c.depZone===false)h+=`<p><b>Départ hors de l’Union européenne :</b> le règlement ne s’applique que si la compagnie est européenne (Air France, Transavia, easyJet Europe…).</p>`;
+ if(!d.pb)h+=`<p>Choisissez le problème rencontré à l’étape 2.</p>`;
+ else if(!c.ok)h+=`<p><b>${esc(c.why)}</b></p>`;
+ else if(c.dist)h+=`<p><b>Indemnisation estimée : ${c.eachS} par passager${c.nb>1?`, soit ${c.totalS} pour ${c.nb} passagers`:''}</b>${c.half?' (montant réduit de moitié, compte tenu du retard à l’arrivée)':''}.</p>`;
+ return h?`<div class="note">${h}<p style="font-size:13px;color:var(--mute)">Montant indicatif, selon le règlement (CE) n° 261/2004.</p></div>`:'';
+}
+function volParas(){
+ const c=volCalc(),L=[],pax=clean1(d.paxnoms);
+ L.push(`J’avais une réservation confirmée${clean1(d.resa)?` (référence ${clean1(d.resa)})`:''} sur le vol ${clean1(d.volno)||'…'} de ${clean1(d.cie)||'votre compagnie'} du ${fr(d.vdate)||'…'}, de ${clean1(d.dep)||'…'} à ${clean1(d.arr)||'…'}, pour ${c.nb} passager${c.nb>1?'s':''}${pax?` (${pax})`:''}.`);
+ if(d.pb==='retard')L.push(`Ce vol est arrivé à destination avec un retard d’environ ${clean1(d.retard)||'…'} heures par rapport à l’heure d’arrivée prévue.`);
+ else if(d.pb==='annule')L.push(`Ce vol a été annulé${d.prevenu==='moins7'?' et j’en ai été informé moins de sept jours avant le départ':d.prevenu==='7a14'?' et j’en ai été informé entre sept et quatorze jours avant le départ':''}.${d.reach==='oui'?` J’ai été réacheminé et suis arrivé à destination avec environ ${clean1(d.reachretard)||'…'} heures de retard.`:''}`);
+ else L.push(`L’embarquement m’a été refusé contre ma volonté, alors que je m’étais présenté à l’enregistrement dans les délais.${d.reach==='oui'?` J’ai été réacheminé et suis arrivé à destination avec environ ${clean1(d.reachretard)||'…'} heures de retard.`:''}`);
+ const art=d.pb==='refus'?'des articles 4 et 7':d.pb==='annule'?'des articles 5 et 7':'de l’article 7';
+ L.push(`En application ${art} du règlement (CE) n° 261/2004${d.pb==='retard'?', tel qu’interprété par la Cour de justice de l’Union européenne (arrêt Sturgeon du 19 novembre 2009, affaires C-402/07 et C-432/07)':''}, et compte tenu d’une distance d’environ ${c.dist?c.dist.toLocaleString('fr-FR'):'…'} km, je vous demande de me verser une indemnisation forfaitaire de ${c.each?c.eachS:'…'} par passager, soit ${c.each?c.totalS:'…'} au total.`);
+ if(d.pb!=='refus')L.push(`Cette indemnisation ne pourrait être écartée que si vous prouviez que ${d.pb==='retard'?'le retard est dû':'l’annulation est due'} à des circonstances extraordinaires qui n’auraient pas pu être évitées même si toutes les mesures raisonnables avaient été prises (article 5, paragraphe 3, du règlement).`);
+ L.push(`Je vous remercie de procéder à ce versement dans un délai d’un mois à compter de la réception de la présente demande. À défaut de réponse satisfaisante dans un délai de deux mois, je saisirai le Médiateur Tourisme et Voyage, puis, si nécessaire, la juridiction compétente.`);
+ return L;
+}
+const volObjet=()=>`Demande d’indemnisation — vol ${clean1(d.volno)||'…'} du ${fr(d.vdate)||'…'} (règlement (CE) n° 261/2004)`;
+const VOL={
+ key:'attest_vol_v1',title:'Indemnisation vol',sub:'Vol retardé, annulé ou surréservé',
+ init:x=>{if(!x.le)x.le=today;if(!x.nbpax)x.nbpax='1'},
+ maxPh:4,phLabels:[],
+ phIntro:()=>`<p>Joignez si possible la <b>confirmation de réservation</b> et les <b>cartes d’embarquement</b> (ou une capture d’écran), ainsi que tout message de la compagnie sur le retard ou l’annulation.</p><p>Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une autre pièce':'Photographier la réservation ou la carte d’embarquement',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Le règlement européen n° 261/2004 prévoit une <b>indemnisation forfaitaire de 250 à 600 € par passager</b> en cas de vol annulé, de refus d’embarquement (surréservation) ou d’arrivée avec <b>au moins 3 heures de retard</b>.</p></div>
+ <div class="note warn"><ul>
+  <li>Le règlement s’applique aux vols qui partent d’un aéroport de l’Union européenne (et de Suisse, Norvège, Islande), et aux vols qui y arrivent sur une compagnie européenne.</li>
+  <li>Montant selon la distance : <b>250 €</b> jusqu’à 1 500 km ; <b>400 €</b> de 1 500 à 3 500 km (ou au-delà de 1 500 km dans l’UE) ; <b>600 €</b> au-delà de 3 500 km. Il peut être réduit de moitié dans certains cas de réacheminement.</li>
+  <li>Pas d’indemnisation si la compagnie prouve des <b>circonstances extraordinaires</b> (météo dangereuse, grève du contrôle aérien…), ni pour une annulation annoncée plus de 14 jours avant.</li>
+  <li>Beaucoup de compagnies demandent de passer par leur <b>formulaire en ligne</b> : vous pouvez y joindre ce PDF. Sans réponse sous 2 mois, saisissez le <b>Médiateur Tourisme et Voyage</b> (mtv.travel), gratuit.</li></ul></div>`,fields:[]},
+  {t:'Le problème',fields:[
+   {k:'pb',l:'Qu’est-il arrivé ?',ty:'radio',o:[['retard','Vol retardé'],['annule','Vol annulé'],['refus','Refus d’embarquement (surréservation)']]},
+   {k:'prevenu',l:'Quand avez-vous été prévenu de l’annulation ?',ty:'radio',o:[['moins7','Moins de 7 jours avant le départ'],['7a14','Entre 7 et 14 jours avant'],['plus14','Plus de 14 jours avant']],if:x=>x.pb==='annule'},
+   {k:'reach',l:'La compagnie vous a-t-elle mis sur un autre vol ?',ty:'radio',o:YN,if:x=>x.pb==='annule'||x.pb==='refus'},
+   {k:'reachretard',l:'Retard à l’arrivée avec cet autre vol (en heures)',ty:'text',h:'Par rapport à l’heure d’arrivée de votre vol initial. Exemple : 2,5',if:x=>(x.pb==='annule'||x.pb==='refus')&&x.reach==='oui',sub:1},
+   {k:'retard',l:'Retard à l’arrivée (en heures)',ty:'text',h:'C’est l’heure d’ouverture des portes à l’arrivée qui compte. Exemple : 3,5',if:x=>x.pb==='retard'}]},
+  {t:'Le vol',fields:[
+   {row:[{k:'cie',l:'Compagnie',ty:'text'},{k:'volno',l:'N° de vol',ty:'text',h:'Exemple : AF1234'}]},
+   {row:[{k:'vdate',l:'Date du vol',ty:'date'},{k:'resa',l:'Réf. de réservation',ty:'text',h:'Facultatif'}]},
+   {row:[{k:'dep',l:'Aéroport de départ',ty:'text',h:'Ville ou code (ex. CDG, MRS)'},{k:'arr',l:'Aéroport d’arrivée',ty:'text',h:'Ville ou code'}]},
+   {k:'dist',l:'Distance (km)',ty:'text',h:'Facultatif si les aéroports sont reconnus : la distance est calculée.'},
+   {k:'intraue',l:'Les deux aéroports sont-ils dans l’Union européenne ?',ty:'radio',o:YN,if:()=>!(findAirport(d.dep)&&findAirport(d.arr))}],
+   post:()=>`<div id="vinfo">${volInfo()}</div>`,live:['dep','arr','dist','retard','reachretard','nbpax'],liveFn:()=>{const c=$('#vinfo');if(c)c.innerHTML=volInfo()}},
+  {t:'Les passagers',fields:[
+   {k:'nbpax',l:'Nombre de passagers concernés',ty:'tel'},
+   {k:'paxnoms',l:'Noms des passagers',ty:'text',h:'Exemple : « moi-même, Léa et Tom MARTIN ».'}],post:()=>`<div id="vinfo2">${volInfo()}</div>`,live:['nbpax'],liveFn:()=>{const c=$('#vinfo2');if(c)c.innerHTML=volInfo()}},
+  {t:'Vous',fields:SENDER()},
+  {t:'La compagnie',fields:RECIP('de la compagnie','Exemple : « Air France — Service client ».')},
+  {t:'Pièces jointes',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièces jointes',phCount()]],fields:[]},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>volInfo()+letterPreview(volObjet(),volParas()),
+ missing(){const m=letterMissing(),c=volCalc();if(!d.pb)m.unshift('problème rencontré');if(!d.volno||!d.vdate)m.unshift('n° et date du vol');if(!c.dist)m.unshift('distance');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service client de la compagnie',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> passez par le formulaire de réclamation de la compagnie en y joignant ce PDF, ou envoyez-le en <b>lettre recommandée avec accusé de réception</b>. Sans réponse satisfaisante sous 2 mois, saisissez gratuitement le Médiateur Tourisme et Voyage (mtv.travel).</p></div>`,
+ fname:()=>`Indemnisation_vol_${fnPart(d.volno)||'vol'}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:volObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma demande d’indemnisation au titre du règlement (CE) n° 261/2004, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:volObjet(),paras:volParas(),pj:myPh().length?'Pièces jointes : réservation, cartes d’embarquement et justificatifs.':'',ph:myPh(),annexTitle:'Pièces jointes : réservation et cartes d’embarquement',rec:false})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
