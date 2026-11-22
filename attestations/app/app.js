@@ -25,6 +25,8 @@ const CATALOG=[
  {id:'colis',t:'Colis perdu ou abîmé',s:'Réclamation au vendeur ou au transporteur'},
  {id:'procu',t:'Procuration',s:'Autoriser un proche à retirer un colis, un document…'},
  {id:'fps',t:'Contester un forfait post-stationnement (FPS)',s:'Recours à la mairie dans le mois : délai calculé, motifs, justificatifs'},
+ {id:'fraude',t:'Paiement frauduleux par carte',s:'Contester un paiement non autorisé et demander le remboursement'},
+ {id:'honneur',t:'Attestation sur l’honneur',s:'Domicile, situation, exactitude d’un dossier… avec la mention légale'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1204,7 +1206,117 @@ const FPS={
  build(){return letterPDF({objet:fpsObjet(),paras:fpsParas(),pj:'Pièces jointes : copie de l’avis de paiement, du certificat d’immatriculation et des justificatifs.',ph:myPh(),annexTitle:'Pièces jointes'})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS};
+/* ================= Document 15 : contestation d'un paiement frauduleux par carte ================= */
+function fraudeParas(){
+ const L=[],ops=String(d.ops||'').split('\n').map(clean1).filter(Boolean),last4=clean1(d.last4).replace(/\D/g,'').slice(-4);
+ L.push(`Titulaire du compte${clean1(d.compte)?` n° ${clean1(d.compte)}`:''} ouvert dans votre établissement${last4?` et de la carte bancaire se terminant par ${last4}`:''}, je conteste ${ops.length>1?'les opérations suivantes, que je n’ai pas autorisées':'l’opération suivante, que je n’ai pas autorisée'} :`);
+ L.push(...(ops.length?ops.map(o=>'– '+o):['– …']));
+ if(clean1(d.total))L.push(`Montant total contesté : ${eur(num(d.total))}.`);
+ L.push(d.carte==='possession'?`Ma carte est toujours en ma possession : ces paiements résultent d’une utilisation frauduleuse de ses données. ${d.opp?`J’ai fait opposition le ${fr(d.opp)}.`:''}`
+  :`Ma carte m’a été ${d.carte==='volee'?'volée':'perdue'}${d.cdate?` le ${fr(d.cdate)}`:''}. ${d.opp?`J’ai fait opposition le ${fr(d.opp)}.`:''}`);
+ if(d.signal==='perceval')L.push(`J’ai signalé cette fraude sur la plateforme Perceval du ministère de l’Intérieur${clean1(d.sigref)?` (référence ${clean1(d.sigref)})`:''}.`);
+ else if(d.signal==='plainte')L.push(`J’ai déposé plainte${clean1(d.sigref)?` (référence ${clean1(d.sigref)})`:''}.`);
+ L.push(`Conformément à l’article L. 133-18 du code monétaire et financier, je vous demande de me rembourser immédiatement le montant de ${ops.length>1?'ces opérations non autorisées':'cette opération non autorisée'}, et au plus tard à la fin du premier jour ouvrable suivant la présente notification, en rétablissant mon compte dans l’état où il se serait trouvé si ${ops.length>1?'elles n’avaient':'elle n’avait'} pas eu lieu (frais et agios compris).`);
+ if(d.carte==='possession')L.push(`Je vous rappelle que ma responsabilité n’est pas engagée lorsque l’opération a été effectuée, sans que la carte soit perdue ou volée, par détournement de ses données (article L. 133-19 du même code).`);
+ L.push(`À défaut de remboursement, je saisirai le médiateur de votre établissement, puis, si nécessaire, la juridiction compétente.`);
+ return L;
+}
+const fraudeObjet=()=>`Contestation d’opération${String(d.ops||'').split('\n').filter(x=>clean1(x)).length>1?'s':''} non autorisée${String(d.ops||'').split('\n').filter(x=>clean1(x)).length>1?'s':''} par carte bancaire`;
+function fraudeInfo(){
+ const ops=String(d.ops||'').split('\n').map(clean1).filter(Boolean);
+ const dates=(String(d.ops||'').match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g)||[]).map(s=>{const [a,b,c]=s.split('/');return `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`}).sort();
+ const old=dates.length&&addMonths(dates[0],13)<today;
+ return `<div class="note${old?' warn':''}"><p>${ops.length?`${ops.length} opération${ops.length>1?'s':''} contestée${ops.length>1?'s':''}.`:'Indiquez une opération par ligne.'}${old?' <b>Attention : une opération de plus de 13 mois ne peut en principe plus être contestée.</b>':''}</p></div>`;
+}
+const FRAUDE={
+ key:'attest_fraude_v1',title:'Paiement frauduleux',sub:'Contester une opération par carte non autorisée',
+ init:x=>{if(!x.le)x.le=today;if(!x.carte)x.carte='possession';if(!x.signal)x.signal='non'},
+ maxPh:3,phLabels:[],phIntro:()=>`<p>Joignez si possible le <b>relevé de compte</b> (ou une capture de l’appli bancaire) montrant les opérations, et le <b>récépissé</b> de signalement Perceval ou de plainte. Les photos sont ajoutées à la fin du PDF (3 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter un justificatif':'Photographier le relevé ou la capture',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À demander à votre banque le remboursement d’un paiement par carte que vous n’avez pas fait : carte piratée sur internet, carte perdue ou volée.</p></div>
+ <div class="note warn"><ul>
+  <li><b>D’abord, faites opposition</b> sur votre carte (appli de la banque ou numéro d’opposition au dos de votre carte ou sur le site de la banque).</li>
+  <li>Signalez la fraude sur <b>Perceval</b> (service en ligne officiel, accessible avec FranceConnect) si votre carte est toujours en votre possession ; en cas de vol, portez plainte.</li>
+  <li>Contestez <b>sans tarder</b>, et au plus tard <b>13 mois</b> après le débit. La banque doit en principe rembourser au plus tard à la fin du jour ouvrable suivant, sauf si elle soupçonne une fraude de votre part ou prouve une négligence grave (code PIN noté sur la carte, codes communiqués…).</li>
+  <li><b>Si c’est vous qui avez validé le paiement</b> (par exemple à la demande d’un faux conseiller bancaire), le remboursement est plus incertain : contestez quand même, et renseignez-vous (association de consommateurs, médiateur).</li>
+  <li><b>Ne donnez jamais le numéro complet de votre carte</b> : l’appli ne demande que les 4 derniers chiffres.</li></ul></div>`,fields:[]},
+  {t:'Les opérations contestées',fields:[
+   {k:'ops',l:'Une opération par ligne : date, montant, bénéficiaire',ty:'area',big:1,h:'Exemple : « 12/11/2026 — 249,90 € — SHOPXYZ.COM ».'},
+   {k:'total',l:'Montant total (€)',ty:'text',h:'Facultatif.'}],
+   post:()=>`<div id="fxinfo">${fraudeInfo()}</div>`,live:['ops'],liveFn:()=>{const c=$('#fxinfo');if(c)c.innerHTML=fraudeInfo()}},
+  {t:'Votre carte',fields:[
+   {k:'last4',l:'4 derniers chiffres de la carte',ty:'tel',h:'Seulement les 4 derniers chiffres.'},
+   {k:'compte',l:'N° de compte',ty:'text',h:'Facultatif. Vous pouvez n’indiquer que les derniers chiffres.'},
+   {k:'carte',l:'Votre carte est…',ty:'radio',o:[['possession','Toujours en ma possession'],['perdue','Perdue'],['volee','Volée']]},
+   {k:'cdate',l:'Date de la perte ou du vol',ty:'date',if:x=>x.carte!=='possession',sub:1},
+   {k:'opp',l:'Date de l’opposition',ty:'date'},
+   {k:'signal',l:'Avez-vous signalé la fraude ?',ty:'radio',o:[['perceval','Oui, sur Perceval'],['plainte','Oui, par une plainte'],['non','Pas encore']]},
+   {k:'sigref',l:'Référence du signalement ou de la plainte',ty:'text',if:x=>x.signal!=='non',sub:1}]},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Votre banque',fields:RECIP('de la banque et de l’agence','Exemple : « Banque du Sud — Agence Castellane ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['ops'],recapMore:i=>i===1&&clean1(d.ops)?[['Opérations',String(d.ops).split('\n').map(clean1).filter(Boolean).join(' ; ')]]:[],
+ recapBefore:()=>fraudeInfo()+letterPreview(fraudeObjet(),fraudeParas()),
+ missing(){const m=letterMissing();if(!clean1(d.ops))m.unshift('opérations contestées');if(String(d.last4||'').replace(/D/g,'').length>4)m.unshift('n’indiquez que les 4 derniers chiffres de la carte (étape 3)');if(!d.opp)m.push('date de l’opposition');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'messagerie ou mail de votre conseiller',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> déposez la lettre dans la messagerie sécurisée de votre banque ou de votre appli (en joignant le PDF) <b>et</b> envoyez-la en <b>lettre recommandée avec accusé de réception</b> à votre agence. Gardez les preuves.</p></div>`,
+ fname:()=>`Contestation_paiement_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:fraudeObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma contestation d’opérations non autorisées sur ma carte bancaire, avec les justificatifs. Elle vous est également adressée par courrier recommandé avec accusé de réception.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:fraudeObjet(),paras:fraudeParas(),pj:myPh().length?'Pièces jointes : relevé des opérations et justificatifs.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+/* ================= Document 16 : attestation sur l'honneur ================= */
+const HMOD=[['libre','Texte libre'],['domicile','Domicile (je réside à…)'],['celib','Situation familiale (célibataire…)'],['exact','Exactitude des informations d’un dossier'],['hebergeT','Je ne suis pas hébergé(e) ni propriétaire ailleurs'],['autre','Autre (à rédiger)']];
+const hModel=()=>({domicile:`résider à l’adresse suivante : ${pAddr('a_')||'…'}`,celib:'être célibataire et ne pas être lié(e) par un pacte civil de solidarité',exact:'l’exactitude des informations que j’ai fournies dans mon dossier de …',hebergeT:'ne pas être propriétaire d’un autre logement et ne pas disposer d’un autre domicile'}[d.hmod]||'');
+function honneurParas(){
+ const L=[];
+ L.push(`Je soussigné${pE('a_')} ${pText('a_')},`);
+ L.push(`atteste sur l’honneur ${clean1(d.htexte)||'…'}${/[.!?]$/.test(clean1(d.htexte))?'':'.'}`);
+ if(clean1(d.hdest))L.push(`Cette attestation est établie à la demande de ${clean1(d.hdest)}, pour servir et valoir ce que de droit.`);
+ else L.push(`Attestation établie pour servir et valoir ce que de droit.`);
+ L.push(`Je suis informé${pE('a_')} que l’établissement d’une attestation faisant état de faits matériellement inexacts est puni d’un an d’emprisonnement et de 15 000 € d’amende (article 441-7 du code pénal).`);
+ L.push(faitLe()+'.');
+ return L;
+}
+const HONNEUR={
+ key:'attest_honneur_v1',title:'Attestation sur l’honneur',sub:'Pour une administration, un employeur, une école…',
+ init:x=>{if(!x.le)x.le=today;if(!x.hmod)x.hmod='libre'},
+ maxPh:2,phLabels:['Pièce d’identité (recto)','Pièce d’identité (verso)'],phIntro:()=>`<p>Beaucoup d’organismes demandent la <b>copie de votre pièce d’identité</b> avec l’attestation. Photographiez-la si besoin : elle est ajoutée à la fin du PDF.</p>`,
+ phBtn:n=>n?'Photographier le verso':'Photographier votre pièce d’identité',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> Une attestation sur l’honneur est une déclaration écrite par laquelle vous certifiez qu’un fait est exact : domicile, situation familiale, absence de revenus, exactitude d’un dossier…</p></div>
+ <div class="note warn"><ul>
+  <li>Une fausse attestation est punie d’un an de prison et de 15 000 € d’amende (article 441-7 du code pénal) : la mention figure dans le document.</li>
+  <li>Si l’organisme vous fournit <b>son propre modèle</b> ou un formulaire Cerfa, utilisez plutôt celui-ci.</li>
+  <li>Pour héberger quelqu’un ou témoigner en justice, utilisez l’attestation d’hébergement ou l’attestation de témoin de cette appli.</li></ul></div>`,fields:[]},
+  {t:'Vous',fields:personFields('a_')},
+  {t:'Ce que vous attestez',fields:[
+   {k:'hmod',l:'Modèle',ty:'radio',o:HMOD,h:'Choisissez un modèle puis appuyez sur « Utiliser ce texte », ou écrivez librement.'},
+   {k:'htexte',l:'J’atteste sur l’honneur…',ty:'area',h:'Complétez la phrase. Exemple : « ne percevoir aucun revenu depuis le 1er janvier 2026 ».'},
+   {k:'hdest',l:'À la demande de (organisme)',ty:'text',h:'Facultatif. Exemple : « la CAF des Bouches-du-Rhône ».'}],
+   pre:()=>hModel()?`<div class="note"><p>Texte proposé : « ${esc(hModel())} »</p><button type="button" class="btn" id="usemod" style="margin-top:6px">Utiliser ce texte</button></div>`:''},
+  {t:'Pièce d’identité',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièce d’identité',phCount()]],fields:[]},
+  sigStep(),
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>preview('ATTESTATION SUR L’HONNEUR',honneurParas()),
+ missing(){const m=[];if(!d.a_nom||!d.a_prenom)m.push('vos nom et prénom');if(!clean1(d.htexte))m.push('ce que vous attestez');if(!d.sigt)m.push('signature');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'organisme qui la demande',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>Envoyez le PDF à l’organisme qui vous l’a demandée. Certains organismes exigent une signature au stylo : en cas de doute, imprimez et signez aussi à la main.</p></div>`,
+ fname:()=>{const n=fnPart(d.a_nom);return `Attestation_honneur${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){return {to:clean1(d.mailto),subj:'Attestation sur l’honneur'+(pName('a_')?' — '+pName('a_'):''),body:`Bonjour,\n\nVeuillez trouver ci-joint mon attestation sur l’honneur signée.\n\nCordialement,\n${pName('a_')}`}},
+ build(){return paperPDF({title:'ATTESTATION SUR L’HONNEUR',blocks:honneurParas().map(p=>({p})),sigs:[{key:'sig',label:'Signature',name:pName('a_')}],ph:myPh(),phLabels:['Pièce d’identité (recto)','Pièce d’identité (verso)'],annexTitle:'Pièce jointe : pièce d’identité',docTitle:'Attestation sur l’honneur'})}
+};
+document.addEventListener('click',e=>{if(e.target.closest('#usemod')&&doc===HONNEUR){d.htexte=hModel();save();keepScroll()}});
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
