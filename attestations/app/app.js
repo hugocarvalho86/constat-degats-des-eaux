@@ -28,6 +28,9 @@ const CATALOG=[
  {id:'fraude',t:'Paiement frauduleux par carte',s:'Contester un paiement non autorisé et demander le remboursement'},
  {id:'honneur',t:'Attestation sur l’honneur',s:'Domicile, situation, exactitude d’un dossier… avec la mention légale'},
  {id:'recours',t:'Recours CAF, CPAM, France Travail',s:'Contester une décision, un trop-perçu, demander une remise de dette'},
+ {id:'conformite',t:'Garantie légale de conformité',s:'Produit en panne : réparation ou remplacement par le vendeur, 2 ans'},
+ {id:'sepa',t:'Arrêter un prélèvement',s:'Révoquer un mandat SEPA, se faire rembourser un prélèvement'},
+ {id:'insalubre',t:'Signaler un logement insalubre',s:'Lettre à la mairie avec photos, mairie trouvée automatiquement'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1404,7 +1407,209 @@ const RECOURS={
  build(){return letterPDF({objet:recoursObjet(),paras:recoursParas(),pj:'Pièces jointes : copie de la décision et justificatifs.',ph:myPh(),annexTitle:'Pièces jointes'})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS};
+/* ================= Document 18 : garantie légale de conformité ================= */
+function confInfo(){
+ const liv=d.livdate||d.achdate;if(!liv)return '';
+ const fin=addMonths(liv,24),pres=addMonths(liv,d.occasion==='oui'?12:24),apparu=d.defdate||today;
+ if(today>fin)return `<div class="note warn"><p><b>Attention : plus de 2 ans se sont écoulés depuis la livraison</b> (le ${esc(fr(fin))}). La garantie légale de conformité ne s’applique en principe plus ; une garantie commerciale ou la garantie des vices cachés peuvent encore jouer.</p></div>`;
+ return `<div class="note"><p>Garantie légale de conformité : <b>jusqu’au ${esc(frLong(fin))}</b> (2 ans après la livraison).${apparu<=pres?' Le défaut étant apparu dans les '+(d.occasion==='oui'?'12':'24')+' premiers mois, il est présumé exister dès la livraison : vous n’avez pas à le prouver.':' Le défaut est apparu après la période de présomption : vous devrez montrer qu’il existait à la livraison.'}</p></div>`;
+}
+function confParas(){
+ const L=[],p=clean1(d.produit)||'…',liv=d.livdate||d.achdate,pres=liv?addMonths(liv,d.occasion==='oui'?12:24):null,apparu=d.defdate||today;
+ L.push(`Le ${fr(d.achdate)||'…'}, j’ai acheté auprès de vous le produit suivant : ${p}${clean1(d.cmdref)?` (commande ou facture n° ${clean1(d.cmdref)})`:''}${clean1(d.prix)?`, pour un prix de ${eur(num(d.prix))}`:''}${d.livdate?`, livré le ${fr(d.livdate)}`:''}.`);
+ L.push(`Depuis le ${fr(d.defdate)||'…'}, ce bien présente le défaut suivant : ${clean1(d.defaut)||'…'}.`);
+ L.push(`En application des articles L. 217-3 et suivants du code de la consommation, vous êtes tenu, en tant que vendeur, de livrer un bien conforme au contrat et de répondre des défauts de conformité qui apparaissent dans un délai de deux ans à compter de sa délivrance.${pres&&apparu<=pres?` Ce défaut étant apparu dans les ${d.occasion==='oui'?'douze':'vingt-quatre'} mois suivant la délivrance, il est présumé exister au moment de celle-ci (article L. 217-7).`:''}`);
+ L.push(`Je vous demande donc de procéder ${d.remede==='remplacement'?'au remplacement':'à la réparation'} du bien, sans aucuns frais pour moi, dans un délai raisonnable qui ne peut excéder trente jours. À défaut, je serai en droit d’obtenir une réduction du prix ou la résolution de la vente, avec le remboursement du prix.`);
+ L.push(`Je vous rappelle que cette garantie légale est due par le vendeur, indépendamment de toute garantie commerciale ou garantie du fabricant.`);
+ return L;
+}
+const confObjet=()=>`Mise en œuvre de la garantie légale de conformité${clean1(d.cmdref)?' — commande n° '+clean1(d.cmdref):''}`;
+const CONFORMITE={
+ key:'attest_conformite_v1',title:'Garantie de conformité',sub:'Produit en panne ou défectueux : réparation ou remplacement',
+ init:x=>{if(!x.le)x.le=today;if(!x.remede)x.remede='reparation';if(!x.occasion)x.occasion='non'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez la <b>facture ou le ticket de caisse</b> et des <b>photos du défaut</b>. Elles sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une photo':'Photographier la facture',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Un produit acheté à un professionnel (en magasin ou en ligne) tombe en panne ou ne fonctionne pas comme prévu ? Le <b>vendeur</b> doit le réparer ou le remplacer gratuitement pendant <b>2 ans</b> après la livraison : c’est la garantie légale de conformité.</p></div>
+ <div class="note warn"><ul>
+  <li>Adressez-vous au <b>vendeur</b>, pas au fabricant : il ne peut pas vous renvoyer vers le service après-vente de la marque.</li>
+  <li>Pendant les 2 ans (1 an pour un bien d’occasion), le défaut est présumé exister dès la livraison : vous n’avez pas à le prouver.</li>
+  <li>Une casse due à une chute ou à une mauvaise utilisation n’est pas couverte.</li>
+  <li>Ne pas confondre avec la <b>garantie commerciale</b> (extension payante ou garantie du fabricant), qui s’ajoute à la garantie légale.</li></ul></div>`,fields:[]},
+  {t:'Le produit',fields:[
+   {k:'produit',l:'Produit',ty:'text',h:'Marque et modèle. Exemple : « lave-linge Bosch Série 6 WGG04409FR ».'},
+   {row:[{k:'achdate',l:'Date d’achat',ty:'date'},{k:'livdate',l:'Date de livraison',ty:'date',h:'Si différente'}]},
+   {row:[{k:'prix',l:'Prix (€)',ty:'text'},{k:'cmdref',l:'N° de commande ou de facture',ty:'text'}]},
+   {k:'occasion',l:'Produit d’occasion ?',ty:'radio',o:YN}],
+   post:()=>`<div id="cinfo">${confInfo()}</div>`,live:['achdate','livdate'],liveFn:()=>{const c=$('#cinfo');if(c)c.innerHTML=confInfo()}},
+  {t:'Le défaut',fields:[
+   {k:'defaut',l:'Décrivez le défaut',ty:'area',h:'Exemple : « le tambour ne tourne plus et un code erreur E18 s’affiche ».'},
+   {k:'defdate',l:'Apparu le',ty:'date'},
+   {k:'remede',l:'Vous demandez…',ty:'radio',o:[['reparation','La réparation'],['remplacement','Le remplacement']],h:'Le vendeur peut refuser votre choix s’il est impossible ou d’un coût disproportionné, et proposer l’autre solution.'}],
+   post:()=>`<div id="cinfo2">${confInfo()}</div>`},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le vendeur',fields:RECIP('du vendeur (magasin ou site)','Exemple : « Darty — Service clients ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['defaut'],recapMore:i=>i===2&&clean1(d.defaut)?[['Défaut',clean1(d.defaut)]]:[],
+ recapBefore:()=>confInfo()+letterPreview(confObjet(),confParas()),
+ missing(){const m=letterMissing();if(!clean1(d.produit))m.unshift('produit');if(!d.achdate)m.unshift('date d’achat');if(!clean1(d.defaut))m.unshift('défaut');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'service clients du vendeur',
+ recapAfter:lrarNote,
+ fname:()=>`Garantie_conformite${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:confObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma demande de mise en œuvre de la garantie légale de conformité, avec la facture et des photos du défaut.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:confObjet(),paras:confParas(),pj:myPh().length?'Pièces jointes : facture et photos du défaut.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+/* ================= Document 19 : révocation d'un mandat de prélèvement SEPA ================= */
+const sepaBanque=()=>d.sdest==='banque';
+function sepaInfo(){
+ if(d.rembourse!=='oui'||!d.pdate)return '';
+ const nonAut=d.smotif==='nonautorise',fin=nonAut?addMonths(d.pdate,13):isoS(new Date(isoD(d.pdate).getTime()+56*864e5));
+ return `<div class="note${today>fin?' warn':''}"><p>${nonAut?'Prélèvement non autorisé : remboursement à demander dans les <b>13 mois</b>':'Prélèvement autorisé : remboursement sans condition à demander dans les <b>8 semaines</b>'} après le débit, soit au plus tard le <b>${esc(fr(fin))}</b>.${today>fin?' <b>Ce délai semble dépassé.</b>':''}</p></div>`;
+}
+function sepaParas(){
+ const L=[],cr=clean1(d.creancier)||'…',rum=clean1(d.rum),ics=clean1(d.ics),cpt=clean1(d.compte);
+ const mot={resilie:'mon contrat a pris fin',litige:'je suis en litige avec ce créancier',nonautorise:'je n’ai jamais autorisé ces prélèvements',autre:clean1(d.smotiftxt)}[d.smotif];
+ if(!sepaBanque()){
+  L.push(`Par la présente, je révoque le mandat de prélèvement SEPA${rum?` (référence unique de mandat ${rum})`:''} que je vous avais donné pour le prélèvement de sommes sur mon compte${cpt?` n° ${cpt}`:''}${mot?`, au motif que ${mot}`:''}.`);
+  L.push(`Je vous demande en conséquence de ne plus émettre aucun prélèvement sur mon compte à compter de la réception de la présente lettre. J’informe parallèlement ma banque de cette révocation.`);
+  L.push(`Je vous remercie de me confirmer par écrit la prise en compte de cette révocation.`);
+ }else{
+  L.push(`Je vous informe que j’ai révoqué le mandat de prélèvement SEPA${rum?` (référence unique de mandat ${rum})`:''} donné au créancier ${cr}${ics?` (identifiant créancier SEPA ${ics})`:''}${mot?`, au motif que ${mot}`:''}.`);
+  L.push(`Je vous demande en conséquence de refuser tout nouveau prélèvement émis par ce créancier sur mon compte${cpt?` n° ${cpt}`:''} à compter de la réception de la présente lettre.`);
+  if(d.rembourse==='oui')L.push(d.smotif==='nonautorise'
+   ?`Je conteste en outre le prélèvement du ${fr(d.pdate)||'…'}${clean1(d.pmontant)?`, d’un montant de ${eur(num(d.pmontant))}`:''}, que je n’ai pas autorisé, et vous demande de me le rembourser conformément à l’article L. 133-18 du code monétaire et financier.`
+   :`Je vous demande en outre de me rembourser le prélèvement du ${fr(d.pdate)||'…'}${clean1(d.pmontant)?`, d’un montant de ${eur(num(d.pmontant))}`:''}, conformément à l’article L. 133-25 du code monétaire et financier, cette demande étant présentée dans les huit semaines suivant le débit.`);
+ }
+ return L;
+}
+const sepaObjet=()=>sepaBanque()?`Opposition aux prélèvements de ${clean1(d.creancier)||'…'}${clean1(d.rum)?' — mandat '+clean1(d.rum):''}`:`Révocation du mandat de prélèvement SEPA${clean1(d.rum)?' n° '+clean1(d.rum):''}`;
+const SEPA={
+ key:'attest_sepa_v1',title:'Arrêter un prélèvement',sub:'Révoquer un mandat SEPA, demander le remboursement',
+ init:x=>{if(!x.le)x.le=today;if(!x.sdest)x.sdest='creancier';if(!x.smotif)x.smotif='resilie';if(!x.rembourse)x.rembourse='non'},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À arrêter des prélèvements : vous <b>révoquez le mandat</b> auprès de l’entreprise (le créancier) et vous demandez à votre <b>banque</b> de bloquer ses prélèvements. Faites les deux lettres pour plus de sûreté.</p></div>
+ <div class="note warn"><ul>
+  <li>Révoquer le mandat <b>n’annule pas ce que vous devez</b> : si une somme reste due, il faudra la payer autrement.</li>
+  <li>Un prélèvement <b>autorisé</b> peut être remboursé sans justification dans les <b>8 semaines</b> suivant le débit ; un prélèvement <b>non autorisé</b> (sans mandat), dans les <b>13 mois</b>.</li>
+  <li>Vous trouverez la <b>référence unique de mandat (RUM)</b> et l’<b>identifiant créancier SEPA (ICS)</b> sur vos relevés de compte ou sur l’échéancier du créancier.</li>
+  <li>Beaucoup de banques permettent aussi de faire opposition directement dans l’appli.</li></ul></div>`,fields:[]},
+  {t:'Le prélèvement',fields:[
+   {k:'sdest',l:'Cette lettre est adressée…',ty:'radio',o:[['creancier','Au créancier (l’entreprise qui prélève)'],['banque','À ma banque']]},
+   {k:'creancier',l:'Nom du créancier',ty:'text',h:'Tel qu’il apparaît sur vos relevés.'},
+   {row:[{k:'rum',l:'Référence unique de mandat (RUM)',ty:'text',h:'Facultatif'},{k:'ics',l:'Identifiant créancier (ICS)',ty:'text',h:'Facultatif'}]},
+   {k:'compte',l:'N° de compte',ty:'text',h:'Facultatif. Vous pouvez n’indiquer que les derniers chiffres.'},
+   {k:'smotif',l:'Pourquoi ?',ty:'radio',o:[['resilie','Le contrat a pris fin'],['litige','Litige avec le créancier'],['nonautorise','Je n’ai jamais autorisé ces prélèvements'],['autre','Autre']]},
+   {k:'smotiftxt',l:'Précisez',ty:'text',if:x=>x.smotif==='autre',sub:1},
+   {k:'rembourse',l:'Demander le remboursement d’un prélèvement ?',ty:'radio',o:YN,if:x=>x.sdest==='banque'},
+   {row:[{k:'pdate',l:'Date du prélèvement',ty:'date'},{k:'pmontant',l:'Montant (€)',ty:'text'}],if:x=>x.sdest==='banque'&&x.rembourse==='oui',sub:1}],
+   post:()=>`<div id="sinfo">${sepaInfo()}</div>`,live:['pdate'],liveFn:()=>{const c=$('#sinfo');if(c)c.innerHTML=sepaInfo()}},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le destinataire',pre:()=>`<div class="note"><p>${sepaBanque()?'Indiquez votre <b>banque</b> (votre agence).':'Indiquez le <b>créancier</b> (service clients ou service prélèvements).'}</p></div>`,fields:RECIP('de la banque ou du créancier','Exemple : « Banque du Sud — Agence Castellane » ou « Club Forme — Service clients ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>sepaInfo()+letterPreview(sepaObjet(),sepaParas()),
+ missing(){const m=letterMissing();if(!clean1(d.creancier))m.unshift('nom du créancier');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'votre banque ou le créancier',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>Envoyez cette lettre en <b>recommandé avec accusé de réception</b> (ou par la messagerie de votre banque). ${sepaBanque()?'Envoyez aussi la lettre de révocation au créancier : changez le destinataire à l’étape 2.':'Envoyez aussi une lettre à votre banque : changez le destinataire à l’étape 2.'}</p></div>`,
+ fname:()=>`${sepaBanque()?'Opposition_prelevement':'Revocation_mandat_SEPA'}_${fnPart(d.creancier)||'creancier'}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:sepaObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma lettre concernant le mandat de prélèvement SEPA au profit de ${clean1(d.creancier)||'…'}.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:sepaObjet(),paras:sepaParas()})}
+};
+
+/* ================= Document 20 : signalement d'un logement insalubre ou indigne à la mairie ================= */
+const SL_URL='https://signal-logement.beta.gouv.fr/';
+const DESORDRES=[['humidite','Humidité, moisissures'],['infiltrations','Infiltrations, fuites'],['chauffage','Pas de chauffage ou chauffage insuffisant'],['electricite','Installation électrique dangereuse'],['gaz','Gaz, aération insuffisante (risque de monoxyde de carbone)'],['plomb','Peintures anciennes écaillées (risque de plomb)'],['nuisibles','Nuisibles (rats, cafards, punaises de lit…)'],['eau','Pas d’eau potable ou pas d’eau chaude'],['sanitaires','WC ou salle d’eau absents ou hors d’usage'],['structure','Fissures, plafond ou escalier dangereux'],['autre','Autre']];
+const desordresTxt=()=>(Array.isArray(d.desordres)?d.desordres:[]).map(v=>v==='autre'?clean1(d.desautre)||'autre désordre':((DESORDRES.find(x=>x[0]===v)||[,''])[1]).toLowerCase()).filter(Boolean);
+/* Recherche de la mairie : geo.api.gouv.fr (commune) puis Annuaire de l'administration (service-public.fr) */
+async function findMairie(){
+ const out=$('#mairie-out'),cp=String(d.logcp||d.cp||'').replace(/\D/g,'');
+ if(cp.length!==5){out.innerHTML='<div class="msg err">Indiquez d’abord le code postal du logement (étape 2).</div>';return}
+ out.innerHTML='<div class="msg">Recherche de la mairie…</div>';
+ try{
+  const cs=await (await fetch(`https://geo.api.gouv.fr/communes?codePostal=${cp}&fields=nom,code&format=json`)).json();
+  if(!cs.length)throw new Error('code postal inconnu');
+  let c=cs.find(x=>x.code===d.insee)||(cs.length===1?cs[0]:cs.find(x=>clean1(d.logville).toLowerCase()===x.nom.toLowerCase()));
+  if(!c){out.innerHTML=`<div class="note"><p>Plusieurs communes ont ce code postal. Laquelle ?</p>${cs.map(x=>`<button type="button" class="btn" data-insee="${x.code}" style="width:100%;margin-top:6px">${esc(x.nom)}</button>`).join('')}</div>`;return}
+  d.insee=c.code;
+  const q=`https://api-lannuaire.service-public.fr/api/explore/v2.1/catalog/datasets/api-lannuaire-administration/records?where=${encodeURIComponent(`code_insee_commune="${c.code}" and pivot like "mairie"`)}&limit=5&select=nom,adresse,adresse_courriel,site_internet,telephone`;
+  const r=(await (await fetch(q)).json()).results||[];
+  const m=r.find(x=>/^Mairie/i.test(x.nom))||r[0];if(!m)throw new Error('mairie introuvable dans l’annuaire');
+  const P=s=>{try{return JSON.parse(s||'[]')}catch(e){return []}};
+  const a=P(m.adresse)[0]||{},site=(P(m.site_internet)[0]||{}).valeur,tel=(P(m.telephone)[0]||{}).valeur;
+  d.dnom=`Mairie ${/^[AEIOUYÉÈÊÎÔH]/i.test(c.nom)?"d’":"de "}${c.nom} — Service hygiène et logement`;d.dadr=[a.numero_voie,a.complement1,a.service_distribution].filter(Boolean).join(', ');d.dcp=a.code_postal||'';d.dville=a.nom_commune||c.nom;
+  const mail=String(m.adresse_courriel||'').split(';')[0].trim();d.mailto=mail;
+  d.mairieSite=site||'';d.mairieTel=tel||'';save();keepScroll();
+  $('#mairie-out').innerHTML=`<div class="msg">Mairie trouvée : <b>${esc(m.nom)}</b>.${mail?' Son adresse mail est préremplie.':' L’annuaire n’indique pas d’adresse mail : utilisez le formulaire de contact du site'+(site?` (<a href="${esc(site)}" target="_blank" rel="noopener">${esc(site)}</a>)`:'')+(tel?` ou appelez le ${esc(tel)}`:'')+', ou envoyez la lettre par courrier.'}</div>`;
+ }catch(e){out.innerHTML=`<div class="msg err">Recherche impossible (${esc(e.message||e)}). Vérifiez la connexion, ou saisissez l’adresse de la mairie vous-même.</div>`}
+}
+document.addEventListener('click',e=>{const f=e.target.closest('#findmairie');if(f){findMairie();return}const i=e.target.closest('[data-insee]');if(i){d.insee=i.dataset.insee;save();findMairie()}});
+function insalubreParas(){
+ const L=[],des=desordresTxt(),qual={loc:'locataire',po:'propriétaire occupant',voisin:'voisin',autre:'tiers'}[d.lqual]||'occupant';
+ L.push(`Je vous signale la situation du logement situé ${clean1(d.logadr)||'…'}${[d.logcp,d.logville].map(clean1).filter(Boolean).length?', '+[d.logcp,d.logville].map(clean1).filter(Boolean).join(' '):''}${clean1(d.etage)?` (${clean1(d.etage)})`:''}, ${d.lqual==='voisin'||d.lqual==='autre'?`dont je suis ${qual}`:`que j’occupe en qualité de ${qual}`}${clean1(d.occupants)?`, et où vivent ${clean1(d.occupants)}`:''}.`);
+ L.push(`Ce logement présente, depuis ${d.depuis?'le '+fr(d.depuis):'plusieurs mois'}, les désordres suivants : ${des.length?des.join(' ; '):'…'}.${clean1(d.desdetails)?' '+clean1(d.desdetails).replace(/\.?$/,'.'):''}`);
+ if(d.enfants==='oui')L.push(`Des enfants vivent dans ce logement${d.vulnerable==='oui'?', ainsi que des personnes âgées, malades ou en situation de handicap':''}.`);
+ else if(d.vulnerable==='oui')L.push(`Des personnes âgées, malades ou en situation de handicap vivent dans ce logement.`);
+ if(d.proprio==='ecrit')L.push(`J’ai informé le propriétaire${clean1(d.bailleur)?` (${clean1(d.bailleur)})`:''} par écrit${d.pdate?' le '+fr(d.pdate):''}, sans que les travaux nécessaires aient été réalisés.`);
+ else if(d.proprio==='oral')L.push(`J’ai signalé ces désordres oralement au propriétaire${clean1(d.bailleur)?` (${clean1(d.bailleur)})`:''}, sans résultat.`);
+ L.push(`Ces désordres me paraissent porter atteinte à la santé et à la sécurité des occupants. Je vous demande de bien vouloir faire procéder à une visite du logement par vos services et, le cas échéant, d’engager les procédures prévues par le code de la construction et de l’habitation (police de la sécurité et de la salubrité des immeubles, articles L. 511-1 et suivants).`);
+ L.push(`${myPh().length?`Vous trouverez en annexe ${myPh().length} photo${myPh().length>1?'s':''} du logement. `:''}Je reste à votre disposition pour permettre l’accès au logement${clean1(d.tel)?' (téléphone : '+clean1(d.tel)+')':''}.`);
+ return L;
+}
+const insalubreObjet=()=>`Signalement d’un logement insalubre ou indigne — ${[clean1(d.logadr),clean1(d.logville)].filter(Boolean).join(', ')||'…'}`;
+const INSALUBRE={
+ key:'attest_insalubre_v1',title:'Signaler un logement insalubre',sub:'Lettre à la mairie avec photos',
+ init:x=>{if(!x.le)x.le=today;if(!x.lqual)x.lqual='loc';if(!x.proprio)x.proprio='non'},
+ maxPh:10,phLabels:[],phIntro:()=>`<p>Photographiez chaque problème de près et de loin : moisissures, infiltrations, installation électrique, fissures, nuisibles… Les photos sont ajoutées à la fin du PDF (10 au maximum). Elles sont souvent décisives.</p>`,
+ phBtn:n=>n?'Ajouter une photo':'Photographier le premier problème',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> À signaler à la <b>mairie</b> (service hygiène ou logement) un logement qui met en danger la santé ou la sécurité de ses occupants : humidité, moisissures, électricité dangereuse, absence de chauffage, nuisibles…</p></div>
+ <div class="note"><p><b>Le service officiel :</b> l’État propose aussi <b>Signal Logement</b>, une plateforme gratuite qui transmet votre signalement aux services compétents de votre département. Vous pouvez l’utiliser en plus de cette lettre.</p><a class="btn" href="${SL_URL}" target="_blank" rel="noopener" style="width:100%;margin-top:6px">Ouvrir Signal Logement</a></div>
+ <div class="note warn"><ul>
+  <li><b>Danger immédiat</b> (odeur de gaz, fils électriques à nu, plafond qui s’effondre) : appelez le <b>18</b> ou le <b>112</b>.</li>
+  <li>Si vous êtes locataire, écrivez d’abord au propriétaire pour lui demander les travaux${ONLY?'':' (document « Demande de travaux au propriétaire »)'} ; <b>continuez à payer votre loyer</b>.</li>
+  <li>Si vous touchez une aide au logement, signalez aussi la situation à la CAF ou à la MSA : l’aide peut être conservée pendant les travaux.</li></ul></div>${ONLY?`<p class="indep"><b>Application indépendante</b>, éditée par Vitfix. Elle n’est ni éditée ni validée par l’administration, ni liée à la plateforme Signal Logement. Vos informations restent sur votre téléphone : rien n’est envoyé sans votre action.</p>`:''}`,fields:[]},
+  {t:'Le logement',fields:[
+   {k:'logadr',l:'Adresse du logement',ty:'text'},
+   {row:[{k:'logcp',l:'Code postal',ty:'tel'},{k:'logville',l:'Commune',ty:'text'}]},
+   {k:'etage',l:'Étage, n° d’appartement',ty:'text',h:'Facultatif.'},
+   {k:'lqual',l:'Vous êtes…',ty:'radio',o:[['loc','Locataire'],['po','Propriétaire occupant'],['voisin','Voisin, proche, travailleur social…'],['autre','Autre']]},
+   {k:'occupants',l:'Qui vit dans le logement ?',ty:'text',h:'Exemple : « 2 adultes et 3 enfants ».'},
+   {row:[{k:'enfants',l:'Des enfants ?',ty:'radio',o:YN},{k:'vulnerable',l:'Personnes âgées, malades ou handicapées ?',ty:'radio',o:YN}]}]},
+  {t:'Les problèmes',fields:[
+   {k:'desordres',l:'Cochez tous les problèmes constatés',ty:'check',o:DESORDRES},
+   {k:'desautre',l:'Quel autre problème ?',ty:'text',if:x=>Array.isArray(x.desordres)&&x.desordres.includes('autre'),sub:1},
+   {k:'desdetails',l:'Précisions',ty:'area',h:'Pièces concernées, conséquences sur la santé (asthme, allergies…), aggravation.'},
+   {k:'depuis',l:'Depuis quand ?',ty:'date'}]},
+  {t:'Le propriétaire',fields:[
+   {k:'bailleur',l:'Nom du propriétaire ou de l’agence',ty:'text',h:'Facultatif.'},
+   {k:'proprio',l:'L’avez-vous informé ?',ty:'radio',o:[['ecrit','Oui, par écrit'],['oral','Oui, oralement'],['non','Non']]},
+   {k:'pdate',l:'Date du courrier',ty:'date',if:x=>x.proprio==='ecrit',sub:1}]},
+  {t:'Photos',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Photos',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'La mairie',pre:()=>`<div class="note"><p>L’appli trouve la mairie du logement dans l’annuaire officiel de l’administration (service-public.fr).</p><button type="button" class="btn pri" id="findmairie" style="width:100%;margin-top:6px">Trouver la mairie du logement</button><div id="mairie-out" style="margin-top:8px"></div></div>`,fields:RECIP('du service (mairie)','Rempli automatiquement par la recherche ; vous pouvez le modifier.')},
+  letterSigStep(),
+  {t:'Votre signalement',recap:1,fields:[]}
+ ],
+ recapSkip:['desdetails'],recapMore:()=>[],
+ recapBefore:()=>letterPreview(insalubreObjet(),insalubreParas()),
+ missing(){const m=letterMissing();if(!clean1(d.logadr))m.unshift('adresse du logement');if(!desordresTxt().length)m.unshift('problèmes constatés');if(!myPh().length)m.push('photos');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais des photos et une description précise rendent le signalement plus efficace.',
+ mailHint:'adresse mail de la mairie',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> « Envoyer par mail » ouvre un mail à la mairie avec le PDF et les photos joints${d.mairieSite?` ; si la mairie préfère son formulaire en ligne, utilisez son site (<a href="${esc(d.mairieSite)}" target="_blank" rel="noopener">${esc(d.mairieSite)}</a>) en joignant le PDF`:''}. Vous pouvez aussi l’envoyer en recommandé, et faire en plus un signalement sur <a href="${SL_URL}" target="_blank" rel="noopener">Signal Logement</a>.</p></div>`,
+ fname:()=>`Signalement_logement_${fnPart(d.logville)||'commune'}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:insalubreObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint le signalement d’un logement insalubre ou indigne situé ${[clean1(d.logadr),clean1(d.logcp),clean1(d.logville)].filter(Boolean).join(' ')}, avec des photos en annexe.\n\nJe reste à votre disposition pour une visite.\n\n${fullName()}${clean1(d.tel)?'\n'+clean1(d.tel):''}`}},
+ build(){return letterPDF({objet:insalubreObjet(),paras:insalubreParas(),rec:false,pj:myPh().length?`Pièces jointes : ${myPh().length} photo${myPh().length>1?'s':''} du logement.`:'',ph:myPh(),annexTitle:'Photos du logement'})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS,conformite:CONFORMITE,sepa:SEPA,insalubre:INSALUBRE};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
@@ -1447,7 +1652,7 @@ document.addEventListener('change',async e=>{
    APK de test (debug, version « 1.1-test ») : pubs de TEST Google. AAB Google Play (release) : vraies pubs du compte AdMob vitfix.applis.
    Ne jamais cliquer sur ses propres vraies pubs (risque de suspension du compte AdMob).
    L'identifiant d'APPLICATION AdMob est posé par scripts/patch-android.mjs (ADMOB_APP_ID_TEST / ADMOB_APP_ID_PROD). */
-const ADS={enabled:true,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
+const ADS={enabled:!window.ATTEST_NOADS,test:true,interstitialTest:'ca-app-pub-3940256099942544/1033173712',interstitialProd:'ca-app-pub-5405085918436600/9358177237',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
 const adUnit=()=>ADS.test?ADS.interstitialTest:ADS.interstitialProd;
 const Ads=(()=>{
  const A=NATIVE&&ADS.enabled&&CAP.Plugins&&CAP.Plugins.AdMob;
@@ -1494,7 +1699,8 @@ function open(id){
  doc.init(d);cur=Math.min(+(d._step||0),doc.steps.length-1);
 }
 const save=()=>{if(doc)try{localStorage.setItem(doc.key,JSON.stringify(d))}catch(e){}};
-{const v=new URLSearchParams(location.search).get('doc')||localStorage.getItem('attest_view');if(DOCS[v])open(v)}
+const ONLY=window.ATTEST_ONLY&&DOCS[window.ATTEST_ONLY]?window.ATTEST_ONLY:null;
+{const v=ONLY||new URLSearchParams(location.search).get('doc')||localStorage.getItem('attest_view');if(DOCS[v])open(v)}
 
 const sigHTML=hint=>`<div class="f"><span class="lab">Votre signature</span><canvas class="sig" id="sigT"></canvas><div class="sigbar"><span>${hint}</span><button type="button" class="link" data-clear="sig">Effacer</button></div></div>`;
 function fieldHTML(f){
@@ -1502,9 +1708,10 @@ function fieldHTML(f){
  if(f.if&&!f.if(d))return '';
  const id='f_'+f.k,v=d[f.k];let inner='';
  if(f.ty==='area')inner=`<textarea id="${id}" data-k="${f.k}"${f.big?' class="big"':''}>${esc(v)}</textarea>`;
+ else if(f.ty==='check')inner=`<div class="opts" role="group">${f.o.map(([val,lab])=>`<label class="opt"><input type="checkbox" name="${f.k}" value="${val}" data-k="${f.k}" data-ty="check" ${Array.isArray(v)&&v.includes(val)?'checked':''}><span>${lab}</span></label>`).join('')}</div>`;
  else if(f.ty==='radio')inner=`<div class="opts" role="group">${f.o.map(([val,lab])=>`<label class="opt"><input type="radio" name="${f.k}" value="${val}" data-k="${f.k}" data-ty="radio" ${v===val?'checked':''}><span>${lab}</span></label>`).join('')}</div>`;
  else inner=`<input id="${id}" data-k="${f.k}" type="${f.ty}" value="${esc(v)}"${f.ty==='tel'?' inputmode="numeric"':''}${f.ty==='email'?' inputmode="email"':''}${f.ac?` autocomplete="${f.ac}"`:''}>`;
- const lab=f.ty==='radio'?`<span class="lab">${f.l}</span>`:`<label for="${id}">${f.l}</label>`;
+ const lab=(f.ty==='radio'||f.ty==='check')?`<span class="lab">${f.l}</span>`:`<label for="${id}">${f.l}</label>`;
  return `<div class="f${f.sub?' sub':''}">${lab}${inner}${f.h?`<small>${f.h}</small>`:''}</div>`;
 }
 function homeHTML(){
@@ -1527,8 +1734,8 @@ function render(){
  if(s.recap)h+=recapHTML();
  $('#view').innerHTML=`<form class="step" id="step" autocomplete="on">${h}</form>`;
  $('#step').addEventListener('submit',e=>e.preventDefault());
- $('#prev').textContent=cur===0?'Documents':'Précédent';
- $('#next').textContent=cur===S.length-1?'Nouveau document':cur===S.length-2?'Voir le récapitulatif':cur===0?'Commencer':'Suivant';
+ $('#prev').textContent=cur===0?(ONLY?'Précédent':'Documents'):'Précédent';if(ONLY){$('#prev').disabled=cur===0;$('#home').hidden=true}
+ $('#next').textContent=cur===S.length-1?(ONLY?'Nouveau signalement':'Nouveau document'):cur===S.length-2?'Voir le récapitulatif':cur===0?'Commencer':'Suivant';
  (s.pads||[]).forEach(([id,k])=>setupPad(id,k));
  if(s.recap)bindRecap();
  window.scrollTo({top:0});
@@ -1538,7 +1745,7 @@ function keepScroll(){const y=window.scrollY;render();window.scrollTo({top:y})}
 function recapHTML(){
  const S=doc.steps;
  const FLAT=S.flatMap((s,i)=>s.fields.flatMap(f=>(f.row||[f]).map(x=>({...x,if:x.if||f.if}))).map(f=>({...f,step:i})));
- const show=f=>{const v=d[f.k];if(v==null||v==='')return null;if(f.o)return(f.o.find(o=>o[0]===v)||[,v])[1];if(f.ty==='date')return fr(v);return v};
+ const show=f=>{const v=d[f.k];if(v==null||v===''||(Array.isArray(v)&&!v.length))return null;if(f.o)return [].concat(v).map(x=>(f.o.find(o=>o[0]===x)||[,x])[1]).join(', ');if(f.ty==='date')return fr(v);return v};
  const groups=S.map((s,i)=>{if(s.recap||!s.fields.length&&!s.recapRows)return '';
   const rows=FLAT.filter(f=>f.step===i&&(!f.if||f.if(d))&&!doc.recapSkip.includes(f.k)).map(f=>[f.l,show(f)]).filter(r=>r[1]).concat(doc.recapMore(i),s.recapRows?s.recapRows():[]);
   return `<section><h3>${esc(s.t)}<button type="button" class="link" data-go="${i}">Modifier</button></h3>${rows.length?`<dl>${rows.map(r=>`<dt>${esc(r[0].length>70?r[0].slice(0,60)+'…':r[0])}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl>`:'<small style="color:var(--mute)">Non renseigné</small>'}</section>`}).join('');
@@ -1555,7 +1762,7 @@ function recapHTML(){
 }
 
 document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k||!doc)return;
- d[k]=e.target.value;save();
+ if(e.target.dataset.ty==='check'){const a=new Set(Array.isArray(d[k])?d[k]:[]);e.target.checked?a.add(e.target.value):a.delete(e.target.value);d[k]=[...a]}else d[k]=e.target.value;save();
  const s=doc.steps[cur];if(s.live&&s.live.includes(k))s.liveFn();
  if(e.target.dataset.ty){const y=window.scrollY,nm=e.target.name,val=e.target.value;render();window.scrollTo({top:y});const el=document.querySelector(`input[name="${nm}"][value="${val}"]`);el&&el.focus({preventScroll:true})}
 });
@@ -1565,7 +1772,7 @@ document.addEventListener('click',e=>{
  const c=e.target.closest('[data-clear]');if(c){const k=c.dataset.clear;delete d[k];delete d[k+'t'];save();keepScroll();return}
  const dp=e.target.closest('[data-delph]');if(dp){const id=dp.dataset.delph;photos=photos.filter(x=>x.id!==id);if(purls.has(id)){URL.revokeObjectURL(purls.get(id));purls.delete(id)}IDB.del(id).catch(()=>{});keepScroll()}
 });
-const goHome=()=>{view='home';doc=null;render()};
+const goHome=()=>{if(ONLY)return;view='home';doc=null;render()};
 document.addEventListener('click',e=>{if(e.target.closest('#adpriv'))Ads.showPrivacy()});
 $('#home').onclick=goHome;
 $('#prev').onclick=()=>{if(cur>0){cur--;render()}else goHome()};
