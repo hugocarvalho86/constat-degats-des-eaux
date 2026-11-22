@@ -13,10 +13,10 @@ const INK=()=>PDFLib.rgb(0.04,0.16,0.45);
 const CATALOG=[
  {id:'temoin',t:'Attestation de témoin',s:'Cerfa 11527*03 — pour un procès, un litige, les prud’hommes…'},
  {id:'demeure',t:'Lettre de mise en demeure',s:'Impayé, dépôt de garantie, travaux, voisinage, livraison…'},
- {id:'dette',t:'Reconnaissance de dette',s:'Prêt entre particuliers, échéancier, déclaration 2062',soon:1},
- {id:'animal',t:'Cession d’un chien ou d’un chat',s:'Vente ou don : attestation obligatoire',soon:1},
- {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1},
- {id:'heberg',t:'Attestation d’hébergement',s:'Pour la mairie, la préfecture, la CAF…',soon:1}
+ {id:'dette',t:'Reconnaissance de dette',s:'Prêt entre particuliers, remboursement en une fois ou par mois'},
+ {id:'animal',t:'Cession d’un chien ou d’un chat',s:'Vente ou don : l’attestation de cession signée par les deux'},
+ {id:'heberg',t:'Attestation d’hébergement',s:'Quelqu’un habite chez vous : pour la mairie, la préfecture, la CAF…'},
+ {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
@@ -87,17 +87,19 @@ const TEMOIN={
   {t:'Mention écrite de votre main',pre:()=>`<div class="note"><p>Le Cerfa exige que cette phrase soit <b>écrite entièrement de votre main</b>. Recopiez chaque morceau avec le doigt dans le cadre en dessous (vous pouvez tourner le téléphone pour écrire plus à l’aise).</p></div>
  ${MENTION.map((m,i)=>`<div class="f"><p class="copy">${i+1}. ${esc(m)}</p><canvas class="pad" id="pad${i}"></canvas><div class="sigbar"><span>${d['m'+i]?'✓ Écrit':'Écrivez avec le doigt'}</span><button type="button" class="link" data-clear="m${i}">Effacer</button></div></div>`).join('')}`,
    pads:MENTION.map((_,i)=>['pad'+i,'m'+i]),recapRows:()=>[['Mention manuscrite',MENTION.every((_,k)=>d['m'+k+'t'])?'Écrite (4 morceaux)':'Incomplète']],fields:[]},
-  {t:'Pièce d’identité',pre:()=>photosHTML(),recapRows:()=>[['Pièce d’identité',photos.length?photos.length+' photo'+(photos.length>1?'s':''):'Aucune photo']],fields:[]},
+  {t:'Pièce d’identité',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièce d’identité',phCount()]],fields:[]},
   {t:'Date et signature',fields:[{row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}],
    post:()=>sigHTML('Signez avec le doigt, comme sur votre pièce d’identité'),pads:[['sigT','sig']],recapRows:()=>[['Signature',d.sigt?'Oui':'Non']]},
   {t:'Récapitulatif et envoi',recap:1,fields:[]}
  ],
+ maxPh:2,phLabels:['Recto','Verso'],phIntro:()=>`<p>Le Cerfa demande de joindre <b>la copie d’un document officiel d’identité comportant votre signature</b> : carte d’identité, passeport, permis de conduire, titre de séjour.</p><p>Photographiez le recto (et le verso si la signature y figure). Les photos sont ajoutées à la fin du PDF.</p>`,
+ phBtn:n=>n?'Photographier le verso':'Photographier la pièce d’identité',
  recapSkip:['recit'],
  recapMore:i=>i===4&&clean1(d.recit)?[['Récit',faitsText()]]:[],
  missing(){const m=[];
   if(!d.nom)m.push('nom de famille');if(!d.prenoms)m.push('prénoms');if(!d.naiss||!d.naisslieu)m.push('date et lieu de naissance');
   if(!d.adr||!d.ville)m.push('adresse');if(!d.lien)m.push('lien avec les parties');if(!clean1(d.recit))m.push('récit des faits');
-  if(MENTION.some((_,i)=>!d['m'+i+'t']))m.push('mention manuscrite');if(!d.sigt)m.push('signature');if(!photos.length)m.push('photo de la pièce d’identité');return m},
+  if(MENTION.some((_,i)=>!d['m'+i+'t']))m.push('mention manuscrite');if(!d.sigt)m.push('signature');if(!myPh().length)m.push('photo de la pièce d’identité');return m},
  missWarn:'Vous pouvez quand même produire le PDF, mais une attestation incomplète risque d’être écartée par le juge.',
  mailHint:'avocat, personne qui vous l’a demandée…',
  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Le plus sûr devant un juge :</b> imprimez le Cerfa vierge et recopiez-y à la main votre attestation. Ce modèle reprend tout ce que vous avez saisi, prêt à recopier.</p>
@@ -151,7 +153,7 @@ const TEMOIN={
   put(p3,fullName(),210,641);put(p3,d.faita,85,596,288);
   if(d.le){const[y,m,dd]=d.le.split('-');cells(p3,dd+m+y,309.8,12.2,596)}
   if(!model){const s=sigImg('sig');if(s){const im=await doc.embedPng(s.u),k=Math.min(200/im.width,70/im.height);p3.drawImage(im,{x:60,y:560-im.height*k,width:im.width*k,height:im.height*k})}}
-  if(!model&&photos.length){
+  const photos=myPh();if(!model&&photos.length){
    const W=595.28,H=841.89,M=40,bw=W-2*M,bh=330;const pg=doc.addPage([W,H]);
    pg.drawText(enc('Pièce jointe : justificatif d’identité du témoin'),{x:M,y:H-50,size:12,font:bold,color:INK()});
    pg.drawText(one(fullName()),{x:M,y:H-65,size:9,font,color:INK()});
@@ -306,11 +308,282 @@ const DEMEURE={
  }
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE};
+/* ================= Outils pour les documents créés de zéro ================= */
+const CIV=[['mme','Madame'],['m','Monsieur']];
+function personFields(p,{birth=true,addr=true}={}){return [
+ {k:p+'civ',l:'Civilité',ty:'radio',o:CIV},
+ {row:[{k:p+'prenom',l:'Prénom',ty:'text'},{k:p+'nom',l:'Nom',ty:'text'}]},
+ ...(birth?[{row:[{k:p+'naiss',l:'Date de naissance',ty:'date'},{k:p+'naisslieu',l:'Lieu de naissance',ty:'text'}]}]:[]),
+ ...(addr?[{k:p+'adr',l:'Adresse',ty:'text'},{row:[{k:p+'cp',l:'Code postal',ty:'tel'},{k:p+'ville',l:'Commune',ty:'text'}]}]:[])]}
+const pName=p=>[d[p+'prenom'],d[p+'nom']&&d[p+'nom'].toUpperCase()].filter(Boolean).map(clean1).join(' ');
+const pCiv=p=>d[p+'civ']==='mme'?'Madame':d[p+'civ']==='m'?'Monsieur':'';
+const pE=p=>d[p+'civ']==='mme'?'e':'';
+const pAddr=p=>[clean1(d[p+'adr']),[d[p+'cp'],d[p+'ville']].map(clean1).filter(Boolean).join(' ')].filter(Boolean).join(', ');
+function pText(p,{birth=true,addr=true}={}){
+ const who=[pCiv(p),pName(p)].filter(Boolean).join(' ')||'…';
+ const b=birth&&(d[p+'naiss']||d[p+'naisslieu'])?`né${pE(p)}${d[p+'naiss']?' le '+fr(d[p+'naiss']):''}${d[p+'naisslieu']?' à '+clean1(d[p+'naisslieu']):''}`:'';
+ const a=addr&&pAddr(p)?'demeurant '+pAddr(p):'';
+ return [who,b,a].filter(Boolean).join(', ');
+}
+const num=v=>{const n=parseFloat(String(v||'').replace(/[\s  €]/g,'').replace(/euros?/i,'').replace(',','.'));return isFinite(n)?n:NaN};
+const eur=n=>isFinite(n)?n.toLocaleString('fr-FR',{minimumFractionDigits:Math.round(n*100)%100?2:0,maximumFractionDigits:2}).replace(/[  ]/g,' ')+' €':'…';
+/* Nombre en toutes lettres (orthographe traditionnelle) */
+const U19=['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const DIZ=['','dix','vingt','trente','quarante','cinquante','soixante','soixante','quatre-vingt','quatre-vingt'];
+function w99(n){if(n<20)return U19[n];const t=Math.floor(n/10),u=n%10;
+ if(t===7||t===9)return DIZ[t]+(t===7&&u===1?' et ':'-')+U19[10+u];
+ if(u===0)return DIZ[t]+(t===8?'s':'');
+ if(u===1&&t!==8)return DIZ[t]+' et un';
+ return DIZ[t]+'-'+U19[u]}
+function w999(n){const c=Math.floor(n/100),r=n%100;let s='';if(c)s=c>1?U19[c]+' cent'+(r?'':'s'):'cent';if(r)s+=(s?' ':'')+w99(r);return s}
+function words(n){if(!n)return 'zéro';const g=Math.floor(n/1e9),m=Math.floor(n%1e9/1e6),k=Math.floor(n%1e6/1000),r=n%1000,s=[];
+ if(g)s.push(w999(g)+' milliard'+(g>1?'s':''));if(m)s.push(w999(m)+' million'+(m>1?'s':''));
+ if(k)s.push(k===1?'mille':w999(k).replace(/(cent|vingt)s$/,'$1')+' mille');if(r)s.push(w999(r));return s.join(' ')}
+function enLettres(v){if(!isFinite(v)||v<0)return '';const i=Math.floor(v+1e-9),c=Math.round((v-i)*100);
+ let s=i||!c?`${words(i)} ${i>=1e6&&i%1e6===0?'d’euros':'euro'+(i>1?'s':'')}`:'';
+ if(c)s+=(s?' et ':'')+words(c)+' centime'+(c>1?'s':'');return s}
+const handPad=(id,key,copy)=>`<div class="f"><p class="copy">${esc(copy)}</p><canvas class="pad" id="${id}"></canvas><div class="sigbar"><span>${d[key]?'✓ Écrit':'Écrivez avec le doigt'}</span><button type="button" class="link" data-clear="${key}">Effacer</button></div></div>`;
+const padBox=(id,key,label,hint)=>`<div class="f"><span class="lab">${esc(label)}</span><canvas class="sig" id="${id}"></canvas><div class="sigbar"><span>${d[key]?'✓ Signé':esc(hint)}</span><button type="button" class="link" data-clear="${key}">Effacer</button></div></div>`;
+const preview=(title,paras)=>`<div class="note"><p><b>Aperçu du document</b></p><p><b>${esc(title)}</b></p>${paras.filter(Boolean).map(p=>`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`;
+const fnPart=s=>clean1(s).replace(/[^\wÀ-ÿ -]/g,'').replace(/\s+/g,'_').slice(0,30);
+
+/* Document « papier » créé de zéro : titre, blocs, mentions manuscrites, signatures, annexe photos */
+async function paperPDF(o){
+ const {PDFDocument,StandardFonts,rgb}=PDFLib;
+ const pdf=await PDFDocument.create();
+ const font=await pdf.embedFont(StandardFonts.Helvetica),bold=await pdf.embedFont(StandardFonts.HelveticaBold);
+ const enc=encoder(font),W=595.28,H=841.89,M=62,TW=W-2*M,SZ=o.sz||10.6,LH=SZ*1.4,C=rgb(.08,.08,.1),GR=rgb(.32,.35,.38);
+ let pg=pdf.addPage([W,H]),y=H-66;
+ const need=h=>{if(y-h<56){pg=pdf.addPage([W,H]);y=H-66}};
+ const para=(s,f=font,x=M,w=TW)=>{for(const l of wrap(enc(clean1(s)),f,SZ,[w])){need(LH);pg.drawText(l,{x,y,size:SZ,font:f,color:C});y-=LH}};
+ const center=(s,f,size,col=C)=>{const t=enc(clean1(s));need(size+6);pg.drawText(t,{x:(W-f.widthOfTextAtSize(t,size))/2,y,size,font:f,color:col});y-=size+7};
+ const img=async key=>{const p=sigImg(key);return p?await pdf.embedPng(p.u):null};
+ center(o.title,bold,15);if(o.sub)center(o.sub,font,9.2,GR);y-=12;
+ for(const b of o.blocks){
+  if(!b)continue;
+  if(b.h){y-=4;need(LH*3);para(b.h,bold);y-=3}
+  else if(b.p){para(b.p);y-=6}
+  else if(b.kv){for(const [k,v] of b.kv){if(!clean1(v))continue;const L=wrap(enc(clean1(v)),font,SZ,[TW-150]);need(LH*L.length);
+    pg.drawText(enc(k),{x:M,y,size:SZ-.8,font:bold,color:GR});L.forEach((l,i)=>pg.drawText(l,{x:M+150,y:y-i*LH,size:SZ,font,color:C}));y-=LH*L.length+2}y-=6}
+  else if(b.hand){if(b.cap)para(b.cap,bold);y-=2;
+   for(const k of b.hand){const im=await img(k);if(!im){para('(mention non écrite)');continue}
+    const s=Math.min(TW/im.width,36/im.height),w=im.width*s,h=im.height*s;need(h+8);pg.drawImage(im,{x:M,y:y-h+LH-2,width:w,height:h});y-=h+6}y-=8}
+ }
+ const S=o.sigs||[];
+ if(S.length){y-=4;need(118);const cw=TW/S.length,top=y;
+  for(let i=0;i<S.length;i++){const s=S[i],x=M+i*cw;
+   pg.drawText(enc(s.label),{x,y:top,size:SZ-.6,font:bold,color:C});
+   const im=await img(s.key);if(im){const k=Math.min((cw-24)/im.width,62/im.height);pg.drawImage(im,{x,y:top-10-im.height*k,width:im.width*k,height:im.height*k})}
+   if(s.name)pg.drawText(enc(clean1(s.name)),{x,y:top-88,size:SZ-.6,font,color:C})}
+  y=top-104}
+ const ph=o.ph||[];
+ for(let j=0;j<ph.length;j++){
+  if(j%2===0){pg=pdf.addPage([W,H]);for(const [i,l] of wrap(enc(o.annexTitle||'Pièces jointes'),bold,12,[W-80]).entries())pg.drawText(l,{x:40,y:H-50-i*15,size:12,font:bold,color:C})}
+  const p=ph[j],im=await pdf.embedJpg(new Uint8Array(await p.blob.arrayBuffer()));
+  const top=H-85-(j%2)*370,bw=W-80,bh=330,k=Math.min(bw/im.width,bh/im.height),w=im.width*k,h=im.height*k;
+  pg.drawImage(im,{x:40+(bw-w)/2,y:top-bh+(bh-h)/2,width:w,height:h});
+  pg.drawText(enc((o.phLabels||[])[j]||'Pièce jointe '+(j+1)),{x:40,y:top-bh-13,size:9,font,color:C})}
+ pdf.setTitle(enc(o.docTitle||o.title));
+ return finish(pdf);
+}
+const sigStep=()=>({t:'Date et signature',fields:[{row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}],post:()=>sigHTML('Signez avec le doigt'),pads:[['sigT','sig']],recapRows:()=>[['Signature',d.sigt?'Oui':'Non']]});
+const faitLe=()=>`Fait à ${clean1(d.faita)||'…'}, le ${fr(d.le)||'…'}`;
+
+/* ================= Document 3 : reconnaissance de dette ================= */
+const MODES={virement:'par virement bancaire',cheque:'par chèque',especes:'en espèces'};
+function detteCalc(){
+ const m=num(d.montant),n=Math.max(1,parseInt(d.nb)||0);
+ const mens=num(d.mens)>0?num(d.mens):Math.round(m/n*100)/100;
+ const last=Math.round((m-mens*(n-1))*100)/100;
+ return {m,n,mens,last};
+}
+const lettresTxt=()=>{const m=num(d.montant);return isFinite(m)&&m>0?`En lettres : ${enLettres(m)}`:'Indiquez le montant en chiffres, par exemple 1 500 ou 1 500,50.'};
+function detteParas(){
+ const {m,n,mens,last}=detteCalc(),L=[];
+ L.push(`Je soussigné${pE('a_')} ${pText('a_')},`);
+ L.push(`reconnais devoir à ${pText('b_')},`);
+ L.push(`la somme de ${eur(m)} (${enLettres(m)||'…'}).`);
+ if(d.motif==='pret')L.push(`Cette somme m’a été prêtée${d.pdate?' le '+fr(d.pdate):''}${MODES[d.pmode]?' '+MODES[d.pmode]:''}.`);
+ else if(clean1(d.motiftxt))L.push(`Cette somme est due au titre de ${clean1(d.motiftxt)}.`);
+ if(d.remb==='echeancier'){
+  L.push(`Je m’engage à la rembourser en ${n} mensualité${n>1?'s':''} de ${eur(mens)}${Math.abs(last-mens)>.004&&n>1?` (la dernière étant de ${eur(last)})`:''}, payable${n>1?'s':''} le ${clean1(d.jour)||'…'} de chaque mois à compter du ${fr(d.rdebut)||'…'}.`);
+  L.push(`À défaut de paiement d’une seule mensualité à son échéance, et huit jours après une mise en demeure restée sans effet, la totalité de la somme restant due deviendra immédiatement exigible si bon semble au créancier.`);
+ }else L.push(`Je m’engage à la rembourser en une seule fois, au plus tard le ${fr(d.rdate)||'…'}.`);
+ L.push(d.interets==='oui'?`Cette somme porte intérêts au taux de ${clean1(d.taux)||'…'} % par an.`:`Cette somme ne porte pas intérêts.`);
+ L.push(`${faitLe()}, en un exemplaire original remis au créancier.`);
+ return L;
+}
+const DETTE={
+ key:'attest_dette_v1',title:'Reconnaissance de dette',sub:'Signée par la personne qui doit l’argent',
+ init:x=>{if(!x.le)x.le=today;if(!x.remb)x.remb='unique';if(!x.interets)x.interets='non';if(!x.motif)x.motif='pret'},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> La reconnaissance de dette prouve qu’une personne doit une somme d’argent à une autre (prêt entre amis ou en famille, reste à payer…). Elle permet de réclamer la somme plus facilement, y compris devant un juge.</p></div>
+ <div class="note warn"><ul>
+  <li>Elle est remplie et signée par <b>la personne qui doit l’argent</b> (le débiteur). L’original est remis à la personne qui a prêté (le créancier).</li>
+  <li>La loi demande que le débiteur écrive <b>lui-même la somme en chiffres et en lettres</b> (article 1376 du code civil) : vous l’écrirez avec le doigt à l’étape 6. Pour le plus de sécurité, vous pouvez aussi la recopier à la main sur le document imprimé.</li>
+  <li>Un prêt de plus de <b>5 000 €</b> doit être déclaré aux impôts par l’emprunteur (formulaire 2062, en ligne sur impots.gouv.fr).</li>
+  <li>Préférez un virement aux espèces : il laisse une trace de la remise de l’argent.</li></ul></div>`,fields:[]},
+  {t:'Vous, qui devez l’argent',fields:personFields('a_')},
+  {t:'La personne à qui vous devez',fields:personFields('b_')},
+  {t:'La somme',fields:[
+   {k:'montant',l:'Montant dû (€)',ty:'text',h:'Exemple : 1 500 ou 1 500,50'},
+   {k:'motif',l:'D’où vient cette dette ?',ty:'radio',o:[['pret','D’un prêt'],['autre','D’autre chose']]},
+   {k:'pdate',l:'Date du prêt',ty:'date',if:x=>x.motif==='pret'},
+   {k:'pmode',l:'Comment l’argent a été remis',ty:'radio',o:[['virement','Virement'],['cheque','Chèque'],['especes','Espèces']],if:x=>x.motif==='pret'},
+   {k:'motiftxt',l:'À quel titre ?',ty:'text',h:'Exemple : « le solde du prix de la voiture achetée le 3 mars ».',if:x=>x.motif==='autre'}],
+   post:()=>`<p class="count" id="lettres">${esc(lettresTxt())}</p>`,live:['montant'],liveFn:()=>{const c=$('#lettres');if(c)c.textContent=lettresTxt()}},
+  {t:'Remboursement',fields:[
+   {k:'remb',l:'Vous rembourserez…',ty:'radio',o:[['unique','En une seule fois'],['echeancier','En plusieurs fois']]},
+   {k:'rdate',l:'Au plus tard le',ty:'date',if:x=>x.remb!=='echeancier'},
+   {row:[{k:'nb',l:'Nombre de mensualités',ty:'tel'},{k:'mens',l:'Montant par mois (€)',ty:'text',h:'Vide : calcul automatique.'}],if:x=>x.remb==='echeancier'},
+   {row:[{k:'jour',l:'Jour du mois',ty:'tel',h:'Exemple : 5'},{k:'rdebut',l:'À partir du',ty:'date'}],if:x=>x.remb==='echeancier'},
+   {k:'interets',l:'Intérêts',ty:'radio',o:[['non','Sans intérêts'],['oui','Avec intérêts']]},
+   {k:'taux',l:'Taux annuel (%)',ty:'text',if:x=>x.interets==='oui',sub:1}]},
+  {t:'La somme écrite de votre main',pre:()=>{const m=num(d.montant);return `<div class="note"><p>Recopiez avec le doigt la somme <b>en chiffres</b>, puis <b>en lettres</b>, dans les cadres ci-dessous (vous pouvez tourner le téléphone pour écrire plus à l’aise).</p></div>
+ ${handPad('pad0','dm0','1. En chiffres : '+eur(m))}${handPad('pad1','dm1','2. En lettres : '+(enLettres(m)||'… (indiquez d’abord le montant à l’étape 4)'))}`},
+   pads:[['pad0','dm0'],['pad1','dm1']],recapRows:()=>[['Somme écrite à la main',d.dm0t&&d.dm1t?'Oui (chiffres et lettres)':'Incomplète']],fields:[]},
+  sigStep(),
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>preview('RECONNAISSANCE DE DETTE',detteParas()),
+ missing(){const m=[];if(!d.a_nom||!d.a_prenom)m.push('vos nom et prénom');if(!d.a_adr)m.push('votre adresse');if(!d.b_nom)m.push('le créancier');
+  if(!(num(d.montant)>0))m.push('montant');if(d.remb==='echeancier'?!(d.nb&&d.rdebut):!d.rdate)m.push('date de remboursement');
+  if(!d.dm0t||!d.dm1t)m.push('somme écrite à la main');if(!d.sigt)m.push('signature');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais une reconnaissance de dette incomplète sera plus difficile à faire valoir.',
+ mailHint:'mail de la personne qui vous a prêté',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Ensuite :</b> remettez le document signé à la personne qui vous a prêté (par mail ou imprimé) et gardez-en une copie.${num(d.montant)>5000?' Ce prêt dépasse 5 000 € : déclarez-le aux impôts (formulaire 2062, en ligne sur impots.gouv.fr).':''}</p></div>`,
+ fname:()=>{const n=fnPart(d.a_nom);return `Reconnaissance_dette${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){const who=pName('a_');return {to:clean1(d.mailto),subj:`Reconnaissance de dette — ${eur(num(d.montant))}`,body:`Bonjour,\n\nVeuillez trouver ci-joint la reconnaissance de dette signée pour la somme de ${eur(num(d.montant))}.\n\nCordialement,\n${who}`}},
+ build(){const P=detteParas();return paperPDF({title:'RECONNAISSANCE DE DETTE',sub:'Acte sous signature privée (article 1376 du code civil)',
+  blocks:[...P.map(p=>({p})),{hand:['dm0','dm1'],cap:'Somme écrite de la main du débiteur, en chiffres et en lettres :'}],
+  sigs:[{key:'sig',label:'Signature du débiteur',name:pName('a_')}],docTitle:'Reconnaissance de dette'})}
+};
+
+/* ================= Document 4 : attestation d'hébergement ================= */
+function hebergParas(){
+ const L=[];
+ L.push(`Je soussigné${pE('a_')} ${pText('a_')},`);
+ L.push(`certifie sur l’honneur héberger à mon domicile${d.gratuit==='oui'?', à titre gratuit,':''} depuis le ${fr(d.depuis)||'…'} :`);
+ L.push(`${pText('b_',{addr:false})}${clean1(d.lien)?' ('+clean1(d.lien)+')':''}.`);
+ if(clean1(d.autres))L.push(`Ainsi que : ${clean1(d.autres)}.`);
+ if(d.statut)L.push(`Je suis ${d.statut==='proprio'?'propriétaire':'locataire'} de ce logement.`);
+ L.push(`Je suis informé${pE('a_')} que l’établissement d’une attestation faisant état de faits matériellement inexacts est puni d’un an d’emprisonnement et de 15 000 € d’amende (article 441-7 du code pénal).`);
+ L.push(`Attestation établie pour servir et valoir ce que de droit.`);
+ L.push(faitLe()+'.');
+ if(myPh().length)L.push(`Pièces jointes : copie de ma pièce d’identité et justificatif de domicile.`);
+ return L;
+}
+const HEBERG={
+ key:'attest_heberg_v1',title:'Attestation d’hébergement',sub:'Pour la mairie, la préfecture, la CAF…',
+ init:x=>{if(!x.le)x.le=today;if(!x.gratuit)x.gratuit='oui'},
+ maxPh:3,phLabels:['Pièce jointe 1','Pièce jointe 2','Pièce jointe 3'],
+ phIntro:()=>`<p>L’administration demande en général de joindre <b>la copie de votre pièce d’identité</b> et <b>un justificatif de domicile à votre nom de moins de 3 mois</b> (facture d’électricité, quittance de loyer, avis de taxe foncière…).</p><p>Photographiez-les : les photos sont ajoutées à la fin du PDF (3 au maximum).</p>`,
+ phBtn:n=>['Photographier votre pièce d’identité','Ajouter le verso ou le justificatif de domicile','Ajouter le justificatif de domicile'][n]||'Ajouter une photo',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> L’attestation d’hébergement prouve qu’une personne habite chez vous. Elle sert à la personne hébergée pour ses démarches : carte d’identité, passeport, préfecture, CAF, France Travail, inscription scolaire…</p></div>
+ <div class="note warn"><ul>
+  <li>C’est <b>vous, la personne qui héberge</b>, qui remplissez et signez.</li>
+  <li>Ne la confondez pas avec l’<b>attestation d’accueil</b> (Cerfa 10798), demandée en mairie pour recevoir un visiteur étranger : celle-là n’est pas faite par cette appli.</li>
+  <li>Une fausse attestation est punie d’un an de prison et de 15 000 € d’amende (article 441-7 du code pénal).</li></ul></div>`,fields:[]},
+  {t:'Vous, qui hébergez',fields:[...personFields('a_'),{k:'statut',l:'Pour ce logement, vous êtes',ty:'radio',o:[['proprio','Propriétaire'],['loc','Locataire']],h:'Facultatif.'}]},
+  {t:'La personne hébergée',fields:[...personFields('b_',{addr:false}),
+   {k:'lien',l:'Lien avec vous',ty:'text',h:'Facultatif. Exemple : « mon fils », « un ami ».'},
+   {k:'depuis',l:'Hébergée chez vous depuis le',ty:'date'},
+   {k:'gratuit',l:'À titre gratuit (sans loyer) ?',ty:'radio',o:YN},
+   {k:'autres',l:'Autres personnes hébergées',ty:'text',h:'Facultatif. Exemple : « ses enfants Léa MARTIN, née le 02/03/2015, et Tom MARTIN, né le 05/09/2018 ».'}]},
+  {t:'Pièces jointes',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièces jointes',phCount()]],fields:[]},
+  sigStep(),
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>preview('ATTESTATION D’HÉBERGEMENT',hebergParas()),
+ missing(){const m=[];if(!d.a_nom||!d.a_prenom)m.push('vos nom et prénom');if(!d.a_adr||!d.a_ville)m.push('votre adresse');if(!d.b_nom)m.push('personne hébergée');
+  if(!d.depuis)m.push('date de début');if(!d.sigt)m.push('signature');if(!myPh().length)m.push('pièces jointes');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais l’administration risque de demander les éléments manquants.',
+ mailHint:'personne hébergée, administration…',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>Envoyez le PDF à la personne hébergée : elle le joindra à son dossier.</p></div>`,
+ fname:()=>{const n=fnPart(d.b_nom);return `Attestation_hebergement${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){return {to:clean1(d.mailto),subj:`Attestation d’hébergement — ${pName('b_')}`,body:`Bonjour,\n\nVeuillez trouver ci-joint l’attestation d’hébergement signée, avec ma pièce d’identité et mon justificatif de domicile.\n\nCordialement,\n${pName('a_')}`}},
+ build(){return paperPDF({title:'ATTESTATION D’HÉBERGEMENT',blocks:hebergParas().map(p=>({p})),
+  sigs:[{key:'sig',label:'Signature de l’hébergeant',name:pName('a_')}],ph:myPh(),annexTitle:'Pièces jointes : pièce d’identité et justificatif de domicile de l’hébergeant',docTitle:'Attestation d’hébergement'})}
+};
+
+/* ================= Document 5 : cession d'un chien ou d'un chat ================= */
+const ESP=()=>d.espece==='chat'?'chat':'chien';
+function animalBlocks(){
+ const remis=[d.vetdate&&`le certificat vétérinaire établi le ${fr(d.vetdate)}`,d.docinfo==='oui'&&'le document d’information sur les caractéristiques et les besoins de l’animal',d.carnet==='oui'&&'le carnet de santé ou de vaccination',
+  'la carte d’identification de l’animal, signée par le cédant pour le changement de détenteur'].filter(Boolean);
+ return [
+  {h:'Le cédant'},{kv:[['Nom',[pCiv('a_'),pName('a_')].filter(Boolean).join(' ')],['Adresse',pAddr('a_')],['Téléphone',d.a_tel],['N° SIREN / éleveur',d.a_siren]]},
+  {h:'L’acquéreur'},{kv:[['Nom',[pCiv('b_'),pName('b_')].filter(Boolean).join(' ')],['Adresse',pAddr('b_')],['Téléphone',d.b_tel]]},
+  {h:'L’animal'},{kv:[['Espèce',d.espece==='chat'?'Chat':d.espece==='chien'?'Chien':''],['Nom',d.anom],['Race',clean1(d.race)||'N’appartient pas à une race'],['Inscription LOF / LOOF',d.lof],['Sexe',d.sexe==='f'?'Femelle':d.sexe==='m'?'Mâle':''],['Date de naissance',fr(d.anaiss)],['Robe (couleur)',d.robe],['N° d’identification',d.ident],['Stérilisé(e)',d.steril==='oui'?'Oui':d.steril==='non'?'Non':'']]},
+  {h:'Conditions de la cession'},
+  {p:d.mode==='vente'?`L’animal est vendu au prix de ${eur(num(d.prix))}${MODES[d.paie]?', payé '+MODES[d.paie]:''}.`:`L’animal est cédé à titre gratuit (don).`},
+  {p:`L’animal est remis à l’acquéreur le ${fr(d.remise)||'…'}. Sont remis avec lui : ${remis.join(' ; ')}.`},
+  d.ced&&{p:`L’acquéreur déclare avoir signé le certificat d’engagement et de connaissance des besoins spécifiques de l’espèce le ${fr(d.ced)}, au moins sept jours avant la cession.`},
+  {p:`Le cédant déclare que l’animal est identifié et enregistré à son nom au fichier national d’identification (I-CAD). Les parties s’engagent à faire enregistrer sans délai le changement de détenteur.`},
+  d.mode==='vente'&&{p:`La vente est soumise aux dispositions du code rural et de la pêche maritime relatives aux vices rédhibitoires (articles L. 213-1 et suivants).`},
+  {p:`${faitLe()}, en deux exemplaires, un pour chaque partie.`}
+ ];
+}
+const ANIMAL={
+ key:'attest_animal_v1',title:'Cession d’un chien ou d’un chat',sub:'Attestation de cession (vente ou don)',
+ init:x=>{if(!x.le)x.le=today;if(!x.remise)x.remise=today},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert ce document ?</b> Quand on <b>vend</b> un chien ou un chat, la loi demande de remettre une <b>attestation de cession</b> au nouveau propriétaire (article L. 214-8 du code rural). Pour un <b>don</b>, elle est fortement conseillée. Elle prouve le changement de propriétaire.</p></div>
+ <div class="note warn"><p><b>Avant la cession, vérifiez :</b></p><ul>
+  <li>L’animal doit être <b>identifié</b> (puce ou tatouage) et avoir <b>au moins 8 semaines</b>.</li>
+  <li>Un <b>certificat vétérinaire</b> récent (en principe de moins de 3 mois) doit être remis avec l’animal.</li>
+  <li>Pour une première acquisition, l’acquéreur doit avoir signé un <b>certificat d’engagement et de connaissance</b> au moins <b>7 jours avant</b> de recevoir l’animal.</li>
+  <li>Un particulier qui vend des chiots ou des chatons doit en principe avoir un numéro SIREN (sauf exceptions, notamment pour une portée par an d’animaux inscrits au LOF ou au LOOF).</li>
+  <li>Après la cession, faites le <b>changement de détenteur</b> auprès de l’I-CAD (i-cad.fr).</li></ul>
+  <p>Ces règles évoluent : en cas de doute, demandez à votre vétérinaire.</p></div>`,fields:[]},
+  {t:'Vente ou don ?',fields:[
+   {k:'mode',l:'L’animal est…',ty:'radio',o:[['vente','Vendu'],['don','Donné (gratuit)']]},
+   {k:'prix',l:'Prix (€)',ty:'text',if:x=>x.mode==='vente'},
+   {k:'paie',l:'Payé par',ty:'radio',o:[['virement','Virement'],['cheque','Chèque'],['especes','Espèces']],if:x=>x.mode==='vente'},
+   {k:'remise',l:'Date de remise de l’animal',ty:'date'}]},
+  {t:'Le cédant (qui vend ou donne)',fields:[...personFields('a_',{birth:false}),{row:[{k:'a_tel',l:'Téléphone',ty:'tel',h:'Facultatif'},{k:'a_siren',l:'N° SIREN ou d’éleveur',ty:'text',h:'Si vous en avez un'}]}]},
+  {t:'L’acquéreur (nouveau propriétaire)',fields:[...personFields('b_',{birth:false}),{k:'b_tel',l:'Téléphone',ty:'tel',h:'Facultatif'}]},
+  {t:'L’animal',fields:[
+   {k:'espece',l:'Espèce',ty:'radio',o:[['chien','Chien'],['chat','Chat']]},
+   {k:'anom',l:'Nom de l’animal',ty:'text'},
+   {k:'sexe',l:'Sexe',ty:'radio',o:[['m','Mâle'],['f','Femelle']]},
+   {k:'race',l:'Race',ty:'text',h:'Seul un animal inscrit au LOF (chien) ou au LOOF (chat) peut être dit « de race ». Sinon, laissez vide ou écrivez par exemple « type berger allemand ».'},
+   {k:'lof',l:'N° d’inscription LOF / LOOF',ty:'text',h:'Facultatif.'},
+   {row:[{k:'anaiss',l:'Date de naissance',ty:'date'},{k:'robe',l:'Robe (couleur)',ty:'text'}]},
+   {k:'ident',l:'N° d’identification (puce ou tatouage)',ty:'text',h:'15 chiffres pour une puce, sur la carte d’identification I-CAD.'},
+   {k:'steril',l:'Stérilisé(e) ?',ty:'radio',o:YN}]},
+  {t:'Documents remis',fields:[
+   {k:'vetdate',l:'Date du certificat vétérinaire',ty:'date'},
+   {k:'docinfo',l:'Document d’information sur les besoins de l’animal remis ?',ty:'radio',o:YN},
+   {k:'carnet',l:'Carnet de santé ou de vaccination remis ?',ty:'radio',o:YN},
+   {k:'ced',l:'Date de signature du certificat d’engagement par l’acquéreur',ty:'date',h:'Au moins 7 jours avant la remise. Laissez vide si l’acquéreur a déjà eu un animal de cette espèce.'}]},
+  {t:'Date et signatures',fields:[{row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}],
+   post:()=>padBox('sigT','sig','Signature du cédant','Le cédant signe avec le doigt')+padBox('sigB','sigb','Signature de l’acquéreur','L’acquéreur signe avec le doigt'),
+   pads:[['sigT','sig'],['sigB','sigb']],recapRows:()=>[['Signature du cédant',d.sigt?'Oui':'Non'],['Signature de l’acquéreur',d.sigbt?'Oui':'Non']]},
+  {t:'Récapitulatif et envoi',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ missing(){const m=[];if(!d.mode)m.push('vente ou don');if(d.mode==='vente'&&!clean1(d.prix))m.push('prix');if(!d.a_nom)m.push('cédant');if(!d.b_nom)m.push('acquéreur');
+  if(!d.espece)m.push('espèce');if(!clean1(d.ident))m.push('n° d’identification');if(!d.vetdate)m.push('certificat vétérinaire');if(!d.sigt)m.push('signature du cédant');if(!d.sigbt)m.push('signature de l’acquéreur');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant la remise de l’animal.',
+ mailHint:'mail de l’acquéreur',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Ensuite :</b> chacun garde un exemplaire (envoyez le PDF à l’acquéreur). Pensez au changement de détenteur sur i-cad.fr.</p></div>`,
+ fname:()=>{const n=fnPart(d.anom);return `Cession_${ESP()}${n?'_'+n:''}_${d.le||today}.pdf`},
+ mail(){return {to:clean1(d.mailto),subj:`Attestation de cession — ${ESP()}${d.anom?' '+clean1(d.anom):''}`,body:`Bonjour,\n\nVeuillez trouver ci-joint l’attestation de cession signée${d.anom?` pour ${clean1(d.anom)}`:''}.\n\nCordialement,\n${pName('a_')}`}},
+ build(){return paperPDF({title:`ATTESTATION DE CESSION D’UN ${ESP().toUpperCase()}`,sub:'Article L. 214-8 du code rural et de la pêche maritime',sz:9.6,blocks:animalBlocks(),
+  sigs:[{key:'sig',label:'Le cédant',name:pName('a_')},{key:'sigb',label:'L’acquéreur',name:pName('b_')}],docTitle:`Attestation de cession d’un ${ESP()}`})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
-const MAXP=2;let photos=[];const purls=new Map();
+let photos=[];const purls=new Map();
+const myPh=()=>photos.filter(p=>(p.doc||'temoin')===view);
+const phCount=()=>{const n=myPh().length;return n?n+' photo'+(n>1?'s':''):'Aucune photo'};
 const IDB=(()=>{let p;
  const db=()=>p||(p=new Promise((res,rej)=>{const r=indexedDB.open('attestations',1);r.onupgradeneeded=()=>r.result.createObjectStore('files',{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}));
  const tx=async(m,f)=>{const x=await db();return new Promise((res,rej)=>{const t=x.transaction('files',m),r=f(t.objectStore('files'));t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error)})};
@@ -326,19 +599,61 @@ async function shrink(file){
  const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.82));if(!blob)throw new Error('conversion impossible');
  return{id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),blob,w,h,t:Date.now()};
 }
+const phLab=i=>(doc.phLabels||[])[i]||'Photo '+(i+1);
 function photosHTML(){
- return `<div class="note"><p>Le Cerfa demande de joindre <b>la copie d’un document officiel d’identité comportant votre signature</b> : carte d’identité, passeport, permis de conduire, titre de séjour.</p><p>Photographiez le recto (et le verso si la signature y figure). Les photos sont ajoutées à la fin du PDF.</p></div>
- <div class="phgrid">${photos.map((p,i)=>`<figure class="ph"><img src="${purl(p)}" alt="Pièce d’identité, photo ${i+1}"><figcaption><span>${i?'Verso':'Recto'}</span><button type="button" class="link" data-delph="${p.id}">Supprimer</button></figcaption></figure>`).join('')}</div>
- ${photos.length<MAXP?`<div class="phadd"><label class="btn pri phbtn">${photos.length?'Photographier le verso':'Photographier la pièce d’identité'}<input type="file" accept="image/*" capture="environment" data-addph hidden></label><label class="btn phbtn">Choisir dans la galerie<input type="file" accept="image/*" data-addph hidden></label></div>`:''}
+ const ph=myPh();
+ return `<div class="note">${doc.phIntro()}</div>
+ <div class="phgrid">${ph.map((p,i)=>`<figure class="ph"><img src="${purl(p)}" alt="${esc(phLab(i))}"><figcaption><span>${esc(phLab(i))}</span><button type="button" class="link" data-delph="${p.id}">Supprimer</button></figcaption></figure>`).join('')}</div>
+ ${ph.length<doc.maxPh?`<div class="phadd"><label class="btn pri phbtn">${esc(doc.phBtn(ph.length))}<input type="file" accept="image/*" capture="environment" data-addph hidden></label><label class="btn phbtn">Choisir dans la galerie<input type="file" accept="image/*" data-addph hidden></label></div>`:''}
  <div id="phmsg"></div>`;
 }
 document.addEventListener('change',async e=>{
  if(!e.target.matches('[data-addph]'))return;
- const files=[...e.target.files].slice(0,MAXP-photos.length);let err='';
- for(const f of files){try{const p=await shrink(f);photos.push(p);try{await IDB.put(p)}catch(x){}}catch(x){err=x.message||String(x)}}
+ const files=[...e.target.files].slice(0,doc.maxPh-myPh().length);let err='';
+ for(const f of files){try{const p=await shrink(f);p.doc=view;photos.push(p);try{await IDB.put(p)}catch(x){}}catch(x){err=x.message||String(x)}}
  keepScroll();
  if(err)$('#phmsg').innerHTML=`<div class="msg err">La photo n’a pas pu être ajoutée : ${esc(err)}</div>`;
 });
+
+
+/* ================= Publicité (appli Android uniquement, jamais dans la version web) =================
+   IDENTIFIANTS DE TEST GOOGLE : à remplacer par ceux du compte AdMob de Hugo avant la mise en production.
+   L'identifiant d'APPLICATION AdMob (ca-app-pub-…~…) est dans scripts/patch-android.mjs (ADMOB_APP_ID). */
+const ADS={enabled:true,test:true,interstitial:'ca-app-pub-3940256099942544/1033173712',gapMs:3*60*1000,maxWaitMs:3000,safetyMs:45000};
+const Ads=(()=>{
+ const A=NATIVE&&ADS.enabled&&CAP.Plugins&&CAP.Plugins.AdMob;
+ let ready=false,loaded=false,loading=null,last=0,privacy=false;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms));
+ function load(){if(!ready||loaded)return Promise.resolve();if(!loading)loading=A.prepareInterstitial({adId:ADS.interstitial,isTesting:ADS.test}).then(()=>{loaded=true}).catch(()=>{}).finally(()=>{loading=null});return loading}
+ async function init(){
+  if(!A)return;
+  try{
+   let c=await A.requestConsentInfo();                       // formulaire de consentement Google (RGPD) au besoin
+   if(c.isConsentFormAvailable&&c.status==='REQUIRED')c=await A.showConsentForm();
+   privacy=c.privacyOptionsRequirementStatus==='REQUIRED';
+   if(view==='home')render();
+   if(!c.canRequestAds)return;                               // pas de consentement : aucune pub
+   await A.initialize({initializeForTesting:ADS.test});      // le SDK applique lui-même le choix (pubs non personnalisées si refus)
+   ready=true;load();
+  }catch(e){}
+ }
+ // Montre au plus une pub toutes les gapMs, puis rend la main. Ne bloque jamais le PDF.
+ async function gate(){
+  if(!ready||Date.now()-last<ADS.gapMs)return;
+  if(!loaded){await Promise.race([load(),wait(ADS.maxWaitMs)]);if(!loaded){last=Date.now();return}}   // pub pas prête : on n’attend plus avant gapMs
+  loaded=false;
+  await new Promise(res=>{
+   let done=false,hs=[];const fin=()=>{if(done)return;done=true;hs.forEach(h=>{try{h.remove()}catch(e){}});res()};
+   Promise.all([A.addListener('interstitialAdDismissed',fin),A.addListener('interstitialAdFailedToShow',fin)])
+    .then(a=>{hs=a;if(done)a.forEach(h=>{try{h.remove()}catch(e){}});return A.showInterstitial()})
+    .then(()=>{last=Date.now()}).catch(fin);
+   setTimeout(fin,ADS.safetyMs);
+  });
+  load();
+ }
+ const showPrivacy=()=>A?A.showPrivacyOptionsForm().catch(()=>{}):Promise.resolve();
+ return {init,gate,hasPrivacy:()=>privacy,showPrivacy};
+})();
 
 /* ================= Moteur d'écrans ================= */
 let view='home',doc=null,d={},cur=0;
@@ -348,7 +663,7 @@ function open(id){
  doc.init(d);cur=Math.min(+(d._step||0),doc.steps.length-1);
 }
 const save=()=>{if(doc)try{localStorage.setItem(doc.key,JSON.stringify(d))}catch(e){}};
-{const v=localStorage.getItem('attest_view');if(DOCS[v])open(v)}
+{const v=new URLSearchParams(location.search).get('doc')||localStorage.getItem('attest_view');if(DOCS[v])open(v)}
 
 const sigHTML=hint=>`<div class="f"><span class="lab">Votre signature</span><canvas class="sig" id="sigT"></canvas><div class="sigbar"><span>${hint}</span><button type="button" class="link" data-clear="sig">Effacer</button></div></div>`;
 function fieldHTML(f){
@@ -363,7 +678,7 @@ function fieldHTML(f){
 }
 function homeHTML(){
  return `<div class="docs">${CATALOG.map(c=>`<button type="button" class="doc" ${c.soon?'disabled':`data-open="${c.id}"`}><span class="ico">${ICON}</span><span><b>${esc(c.t)}</b><span>${esc(c.s)}</span></span>${c.soon?'<i>Bientôt</i>':''}</button>`).join('')}</div>
- <p class="indep"><b>Application indépendante</b>, éditée par Vitfix. Elle n’est ni éditée ni validée par l’administration française. Les formulaires officiels et leurs notices sont disponibles gratuitement sur service-public.fr. Cette application ne remplace pas le conseil d’un avocat.</p>`;
+ <p class="indep"><b>Application indépendante</b>, éditée par Vitfix. Elle n’est ni éditée ni validée par l’administration française. Les formulaires officiels et leurs notices sont disponibles gratuitement sur service-public.fr. Cette application ne remplace pas le conseil d’un avocat.</p>${Ads.hasPrivacy()?'<p class="indep"><button type="button" class="link" id="adpriv">Choix de confidentialité (publicités)</button></p>':''}`;
 }
 function render(){
  localStorage.setItem('attest_view',view);
@@ -420,11 +735,12 @@ document.addEventListener('click',e=>{
  const dp=e.target.closest('[data-delph]');if(dp){const id=dp.dataset.delph;photos=photos.filter(x=>x.id!==id);if(purls.has(id)){URL.revokeObjectURL(purls.get(id));purls.delete(id)}IDB.del(id).catch(()=>{});keepScroll()}
 });
 const goHome=()=>{view='home';doc=null;render()};
+document.addEventListener('click',e=>{if(e.target.closest('#adpriv'))Ads.showPrivacy()});
 $('#home').onclick=goHome;
 $('#prev').onclick=()=>{if(cur>0){cur--;render()}else goHome()};
 $('#next').onclick=()=>{
- if(cur===doc.steps.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses${doc===TEMOIN?', la signature et les photos':' et la signature'}, et commencer un nouveau document ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;
-  $('#reset').onclick=()=>{d={};doc.init(d);save();if(doc===TEMOIN){photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{})}cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
+ if(cur===doc.steps.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses${doc.maxPh?', les signatures et les photos':' et les signatures'}, et commencer un nouveau document ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;
+  $('#reset').onclick=()=>{d={};doc.init(d);save();for(const p of myPh()){if(purls.has(p.id)){URL.revokeObjectURL(purls.get(p.id));purls.delete(p.id)}IDB.del(p.id).catch(()=>{})}photos=photos.filter(p=>(p.doc||'temoin')!==view);cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
  cur++;render()};
 
 /* ================= Écriture au doigt ================= */
@@ -438,7 +754,7 @@ function setupPad(id,key){
  const pos=e=>{const b=cv.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top]};
  cv.onpointerdown=e=>{drawing=true;last=pos(e);try{cv.setPointerCapture(e.pointerId)}catch(x){}ctx.beginPath();ctx.arc(last[0],last[1],1.1,0,7);ctx.fillStyle='#0a2a6b';ctx.fill()};
  cv.onpointermove=e=>{if(!drawing)return;const p=pos(e);ctx.beginPath();ctx.moveTo(...last);ctx.lineTo(...p);ctx.stroke();last=p};
- const end=()=>{if(!drawing)return;drawing=false;const t=trim(cv);if(t){d[key]=cv.toDataURL('image/png');d[key+'t']=t}save();const bar=cv.nextElementSibling&&cv.nextElementSibling.firstElementChild;if(bar&&key!=='sig')bar.textContent='✓ Écrit'};
+ const end=()=>{if(!drawing)return;drawing=false;const t=trim(cv);if(t){d[key]=cv.toDataURL('image/png');d[key+'t']=t}save();const bar=cv.nextElementSibling&&cv.nextElementSibling.firstElementChild;if(bar&&key!=='sig')bar.textContent=key.startsWith('sig')?'✓ Signé':'✓ Écrit'};
  cv.onpointerup=end;cv.onpointercancel=end;
 }
 function trim(cv){
@@ -477,14 +793,15 @@ async function saveBytes(bytes,model){
 }
 function bindRecap(){
  const out=$('#out'),say=(t,err)=>out.innerHTML=`<div class="msg${err?' err':''}">${t}</div>`;
- const busy=async(b,model,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Génération…';try{await fn(await doc.build(model))}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
+ const busy=async(b,model,fn)=>{const lab=b.textContent;b.disabled=true;b.textContent='Un instant…';try{await Ads.gate()}catch(e){}b.textContent='Génération…';try{await fn(await doc.build(model))}catch(e){if(cancelled(e))say('Envoi annulé.');else say('Impossible de terminer : '+esc(e&&e.message||e),1)}b.disabled=false;b.textContent=lab};
  $('#dl').onclick=e=>busy(e.currentTarget,false,async b=>say(await saveBytes(b,false)));
  const mb=$('#model');if(mb)mb.onclick=e=>busy(e.currentTarget,true,async b=>say(await saveBytes(b,true)+' Imprimez aussi le Cerfa vierge (service-public.fr) et recopiez-y le texte à la main.'));
  $('#mail').onclick=e=>busy(e.currentTarget,false,async b=>say(await sendMail(b,doc.mail(),'Envoyer le document')));
 }
 
 render();
-IDB.all().then(a=>{photos=(a||[]).sort((x,y)=>x.t-y.t);if(doc===TEMOIN&&(cur===6||cur===8))render()}).catch(()=>{});
+Ads.init();
+IDB.all().then(a=>{photos=(a||[]).sort((x,y)=>x.t-y.t);if(doc&&doc.maxPh){const s=doc.steps[cur];if(s.recap||s.photos)render()}}).catch(()=>{});
 window.addEventListener('resize',()=>{if(doc)(doc.steps[cur].pads||[]).forEach(([id,k])=>setupPad(id,k))});
 if(NATIVE&&CAP.Plugins.App)CAP.Plugins.App.addListener('backButton',()=>{if(view==='home')CAP.Plugins.App.exitApp();else if(cur>0){cur--;render()}else goHome()});
 if(NATIVE&&CAP.Plugins.SplashScreen)CAP.Plugins.SplashScreen.hide();
