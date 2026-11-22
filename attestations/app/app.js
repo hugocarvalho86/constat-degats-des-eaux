@@ -30,6 +30,10 @@ const CATALOG=[
  {id:'recours',t:'Recours CAF, CPAM, France Travail',s:'Contester une décision, un trop-perçu, demander une remise de dette'},
  {id:'conformite',t:'Garantie légale de conformité',s:'Produit en panne : réparation ou remplacement par le vendeur, 2 ans'},
  {id:'sepa',t:'Arrêter un prélèvement',s:'Révoquer un mandat SEPA, se faire rembourser un prélèvement'},
+ {id:'depot',t:'Restitution du dépôt de garantie',s:'1 ou 2 mois après la remise des clés : date limite et majoration calculées'},
+ {id:'demission',t:'Lettre de démission',s:'Salarié en CDI : préavis, dispense, remise en main propre ou recommandé'},
+ {id:'frais',t:'Réclamation pour frais bancaires',s:'Commissions d’intervention, rejets, agios : plafonds légaux rappelés'},
+ {id:'echeancier',t:'Demande de délai de paiement',s:'Impôts, facture, loyer, hôpital : un échéancier calculé à proposer'},
  {id:'insalubre',t:'Signaler un logement insalubre',s:'Lettre à la mairie avec photos, mairie trouvée automatiquement'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
@@ -1618,7 +1622,272 @@ const INSALUBRE={
  build(){return letterPDF({objet:insalubreObjet(),paras:insalubreParas(),rec:false,pj:myPh().length?`Pièces jointes : ${myPh().length} photo${myPh().length>1?'s':''} du logement.`:'',ph:myPh(),annexTitle:'Photos du logement'})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS,conformite:CONFORMITE,sepa:SEPA,insalubre:INSALUBRE};
+/* ================= Document 21 : restitution du dépôt de garantie (locataire → bailleur) ================= */
+// Art. 22 loi 89-462 : 1 mois (EDL de sortie conforme) ou 2 mois, à compter de la remise des clés ; majoration 10 % du loyer mensuel HC par mois de retard commencé
+const moisRetard=(lim,ref)=>{if(!lim||!ref||ref<=lim)return 0;let m=0;while(addMonths(lim,m)<ref&&m<240)m++;return m};
+function depotCalc(){
+ const mois=d.conforme==='non'?2:1,lim=addMonths(d.cles,mois),dep=num(d.depot),loyer=num(d.loyer),deja=num(d.deja)>0?num(d.deja):0;
+ const reste=isFinite(dep)?Math.max(0,Math.round((dep-deja)*100)/100):NaN,m=moisRetard(lim,today),maj=m&&isFinite(loyer)?Math.round(loyer*0.1*m*100)/100:0;
+ return {mois,lim,dep,loyer,deja,reste,m,maj,du:isFinite(reste)?Math.round((reste+maj)*100)/100:NaN};
+}
+function depotInfo(){
+ const c=depotCalc();
+ if(!d.cles)return `<div class="note"><p>Indiquez la date de remise des clés : l’appli calcule la date limite de restitution.</p></div>`;
+ let h=`<p><b>Date limite de restitution : ${esc(frLong(c.lim))}</b> (${c.mois} mois après la remise des clés du ${esc(fr(d.cles))}${d.conforme==='non'?', état des lieux de sortie différent de celui d’entrée':d.conforme==='oui'?', état des lieux de sortie conforme':''}).</p>`;
+ if(!d.conforme)h+=`<p>Précisez si l’état des lieux de sortie est conforme à celui d’entrée : sinon, le délai est de 2 mois.</p>`;
+ if(c.m)h+=`<p><b>Le délai est dépassé.</b> ${c.m} mois de retard commencé${c.m>1?'s':''} : majoration de 10 % du loyer hors charges par mois${isFinite(c.loyer)?`, soit <b>${eur(c.maj)}</b>`:' (indiquez le loyer hors charges pour la calculer)'}${isFinite(c.du)?`. Somme à réclamer : <b>${eur(c.du)}</b>`:''}. La majoration n’est pas due si le retard vient de ce que vous n’avez pas donné votre nouvelle adresse.</p>`;
+ return `<div class="note${c.m?' warn':''}">${h}</div>`;
+}
+function depotParas(){
+ const c=depotCalc(),L=[],adr=[clean1(d.adr),[clean1(d.cp),clean1(d.ville)].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+ L.push(`J’ai été locataire du logement situé ${clean1(d.logadr)||'…'}${d.entree?`, du ${fr(d.entree)}`:''}${d.sortie?` au ${fr(d.sortie)}`:''}. ${d.sortie?`L’état des lieux de sortie a été établi le ${fr(d.sortie)} et j`:'J'}e vous ai remis les clés le ${fr(d.cles)||'…'}.`);
+ L.push(d.conforme==='non'
+  ?`En application de l’article 22 de la loi n° 89-462 du 6 juillet 1989, vous disposez d’un délai de deux mois à compter de la remise des clés, soit jusqu’au ${fr(c.lim)||'…'}, pour me restituer le dépôt de garantie de ${isFinite(c.dep)?eur(c.dep):'…'}, déduction faite des seules sommes restant dues dont vous pourrez justifier (devis, factures).`
+  :`L’état des lieux de sortie étant conforme à l’état des lieux d’entrée, vous disposez, en application de l’article 22 de la loi n° 89-462 du 6 juillet 1989, d’un délai d’un mois à compter de la remise des clés, soit jusqu’au ${fr(c.lim)||'…'}, pour me restituer le dépôt de garantie de ${isFinite(c.dep)?eur(c.dep):'…'}.`);
+ if(c.deja)L.push(`Vous m’avez déjà restitué ${eur(c.deja)} ; il reste donc ${isFinite(c.reste)?eur(c.reste):'…'} à me verser.`);
+ if(c.m)L.push(`Ce délai est expiré. Je vous rappelle qu’à défaut de restitution dans le délai prévu, le dépôt de garantie restant dû est majoré d’une somme égale à 10 % du loyer mensuel hors charges${isFinite(c.loyer)?` (${eur(c.loyer)})`:''} pour chaque période mensuelle commencée en retard. À ce jour, ${c.m} mois de retard ${c.m>1?'sont commencés':'est commencé'}, soit une majoration de ${isFinite(c.loyer)?eur(c.maj):'…'}. Je vous demande donc de me verser la somme de ${isFinite(c.du)?eur(c.du):'…'} dans un délai de huit jours à compter de la réception de la présente lettre.`);
+ else L.push(`Je vous remercie de me restituer cette somme au plus tard le ${fr(c.lim)||'…'}. À défaut, le dépôt de garantie restant dû sera majoré de 10 % du loyer mensuel hors charges pour chaque mois de retard commencé (même article).`);
+ L.push(clean1(d.iban)?`Vous pouvez effectuer le versement par virement sur mon compte (IBAN ${clean1(d.iban)}). Pour tout courrier, ma nouvelle adresse est : ${adr||'…'}.`:`Je vous rappelle ma nouvelle adresse : ${adr||'…'}. Vous pouvez m’y adresser le règlement, ou me demander mes coordonnées bancaires pour un virement.`);
+ L.push(`Si vous entendez retenir une partie du dépôt de garantie, je vous remercie de m’en communiquer le détail et les justificatifs. À défaut de restitution, je me réserve la possibilité de saisir la commission départementale de conciliation ou un conciliateur de justice, puis le juge des contentieux de la protection.`);
+ return L;
+}
+const depotObjet=()=>`Restitution du dépôt de garantie${clean1(d.logadr)?' — logement situé '+clean1(d.logadr):''}`;
+const DEPOT={
+ key:'attest_depot_v1',title:'Restitution du dépôt de garantie',sub:'Le locataire réclame sa caution au bailleur',
+ init:x=>{if(!x.le)x.le=today},
+ maxPh:3,phLabels:[],phIntro:()=>`<p>Joignez si possible les <b>états des lieux d’entrée et de sortie</b> (la page des signatures suffit) et, si vous voulez être payé par virement, votre <b>RIB</b>. Les photos sont ajoutées à la fin du PDF (3 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter une autre page':'Photographier l’état des lieux',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À réclamer au propriétaire (ou à l’agence) le <b>dépôt de garantie</b> (la « caution ») que vous avez versé à l’entrée dans le logement.</p></div>
+ <div class="note warn"><ul>
+  <li>Le bailleur doit le rendre dans un délai de <b>1 mois</b> si l’état des lieux de sortie est conforme à celui d’entrée, <b>2 mois</b> sinon, à compter de la <b>remise des clés</b> (article 22 de la loi du 6 juillet 1989).</li>
+  <li>En cas de retard, la somme due est <b>majorée de 10 % du loyer mensuel hors charges pour chaque mois de retard commencé</b>, sauf si le retard vient de ce que vous n’avez pas donné votre nouvelle adresse.</li>
+  <li>Le bailleur peut retenir des sommes qui restent dues (loyers, réparations), à condition de les justifier.</li>
+  <li>Sans réponse : pour un litige de moins de 5 000 €, une démarche amiable (conciliateur de justice, commission départementale de conciliation ou médiateur) est obligatoire avant de saisir le juge.</li></ul></div>`,fields:[]},
+  {t:'Le logement',fields:[
+   {k:'logadr',l:'Adresse du logement que vous avez quitté',ty:'text',h:'Avec l’étage ou le n° d’appartement.'},
+   {row:[{k:'entree',l:'Date d’entrée',ty:'date',h:'Facultatif'},{k:'sortie',l:'État des lieux de sortie',ty:'date'}]},
+   {k:'cles',l:'Date de remise des clés',ty:'date',h:'C’est elle qui fait courir le délai.'},
+   {k:'conforme',l:'L’état des lieux de sortie est-il conforme à celui d’entrée ?',ty:'radio',o:[['oui','Oui, pas de différence'],['non','Non, des différences sont notées']]}],
+   post:()=>`<div id="dinfo">${depotInfo()}</div>`,live:['cles'],liveFn:()=>{const c=$('#dinfo');if(c)c.innerHTML=depotInfo()}},
+  {t:'Les montants',fields:[
+   {row:[{k:'depot',l:'Dépôt de garantie versé (€)',ty:'text'},{k:'loyer',l:'Loyer mensuel hors charges (€)',ty:'text'}]},
+   {k:'deja',l:'Somme déjà rendue par le bailleur (€)',ty:'text',h:'Facultatif : seulement s’il vous a rendu une partie.'},
+   {k:'iban',l:'Votre IBAN, pour un virement',ty:'text',h:'Facultatif. Vous pouvez aussi joindre une photo de votre RIB.'}],
+   post:()=>`<div id="dinfo2">${depotInfo()}</div>`,live:['depot','loyer','deja'],liveFn:()=>{const c=$('#dinfo2');if(c)c.innerHTML=depotInfo()}},
+  {t:'Vous, l’ancien locataire',pre:()=>`<div class="note"><p>Indiquez votre <b>nouvelle adresse</b> : c’est là que le bailleur doit vous écrire et vous rendre le dépôt.</p></div>`,fields:SENDER()},
+  {t:'Pièces jointes',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Pièces jointes',phCount()]],fields:[]},
+  {t:'Le bailleur',fields:RECIP('du propriétaire ou de l’agence','Exemple : « M. Jean DUPONT » ou « Agence Immo Sud ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>depotInfo()+letterPreview(depotObjet(),depotParas()),
+ missing(){const m=letterMissing();if(!d.cles)m.unshift('date de remise des clés');if(!isFinite(num(d.depot)))m.unshift('montant du dépôt');if(!clean1(d.logadr))m.unshift('adresse du logement');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'mail du propriétaire ou de l’agence',
+ recapAfter:lrarNote,
+ fname:()=>`Restitution_depot_garantie${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:depotObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma demande de restitution du dépôt de garantie, qui vous est également adressée par courrier recommandé avec accusé de réception.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:depotObjet(),paras:depotParas(),pj:myPh().length?'Pièces jointes : états des lieux et relevé d’identité bancaire.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+/* ================= Document 22 : lettre de démission (salarié en CDI → employeur) ================= */
+const PREAV=[['1s','1 semaine'],['2s','2 semaines'],['1m','1 mois'],['2m','2 mois'],['3m','3 mois'],['autre','Autre durée'],['nsp','Je ne sais pas']];
+const preavTxt=()=>d.preav==='autre'?clean1(d.preavtxt):d.preav&&d.preav!=='nsp'?(PREAV.find(x=>x[0]===d.preav)||[,''])[1]:'';
+function demCalc(){
+ const p=d.preav||'',n=parseInt(p),fin=!d.notif||!n?null:p.endsWith('s')?isoS(new Date(isoD(d.notif).getTime()+7*n*864e5)):addMonths(d.notif,n);
+ return {fin};
+}
+function demInfo(){
+ const c=demCalc(),t=preavTxt();
+ if(!t)return `<div class="note"><p><b>Durée du préavis :</b> la loi ne la fixe pas. Elle est prévue par votre <b>convention collective</b> (son nom figure sur votre bulletin de paie), sinon par votre <b>contrat de travail</b> ou les usages. En cas de doute, demandez au service du personnel ou à Allô Service Public (39 39).</p></div>`;
+ return `<div class="note"><p><b>Préavis : ${esc(t)}</b>, à compter de la ${d.mode==='lrar'?'première présentation de la lettre recommandée':'remise de la lettre'}${d.notif?` (le ${esc(fr(d.notif))})`:''}.${c.fin?` Fin du préavis à titre indicatif : vers le <b>${esc(frLong(c.fin))}</b> (à confirmer avec votre employeur : congés, arrêt maladie ou accord de dispense peuvent la modifier).`:''}</p></div>`;
+}
+const demHead=()=>d.mode==='lrar'?'Lettre recommandée avec accusé de réception':'Lettre remise en main propre contre décharge';
+function demParas(){
+ const L=[],t=preavTxt(),e=eLE();
+ L.push(`Par la présente, je vous informe de ma décision de démissionner de mon poste${clean1(d.poste)?` de ${clean1(d.poste)}`:''}, que j’occupe au sein de votre entreprise${d.embauche?` depuis le ${fr(d.embauche)}`:''}.`);
+ if(t)L.push(`Mon préavis, d’une durée de ${t}${clean1(d.ccn)?`, conformément à la convention collective ${clean1(d.ccn)}`:', conformément aux dispositions qui me sont applicables'}, commencera à courir à compter de la ${d.mode==='lrar'?'première présentation de la présente lettre':'remise de la présente lettre'}.`);
+ else L.push(`J’effectuerai le préavis prévu par ${clean1(d.ccn)?`la convention collective ${clean1(d.ccn)}`:'la convention collective ou, à défaut, mon contrat de travail'}, qui commencera à courir à compter de la ${d.mode==='lrar'?'première présentation de la présente lettre':'remise de la présente lettre'}.`);
+ if(d.dispense==='oui')L.push(`Je souhaiterais toutefois être dispensé${e} de ${d.depart?'tout ou partie de ':''}ce préavis${d.depart?` et quitter l’entreprise le ${fr(d.depart)}`:''}. Si vous en êtes d’accord, je vous remercie de me le confirmer par écrit ; je sais que, dans ce cas, la période de préavis non effectuée ne me sera pas rémunérée.`);
+ L.push(`À l’issue de mon contrat, je vous remercie de me remettre mon certificat de travail, mon reçu pour solde de tout compte et mon attestation destinée à France Travail, ainsi que les sommes qui me restent dues (salaire, indemnité de congés payés non pris).`);
+ return L;
+}
+const demObjet=()=>`Démission${clean1(d.poste)?' — poste de '+clean1(d.poste):''}`;
+const DEMISSION={
+ key:'attest_demission_v1',title:'Lettre de démission',sub:'Salarié en CDI : la lettre à l’employeur',
+ init:x=>{if(!x.le)x.le=today;if(!x.mode)x.mode='main';if(!x.dispense)x.dispense='non';if(!x.notif)x.notif=today},
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Un salarié en <b>CDI</b> qui veut quitter son emploi informe son employeur de sa démission. Aucune forme n’est imposée par la loi, mais un écrit clair évite les litiges : <b>remise en main propre contre décharge</b> ou <b>lettre recommandée avec accusé de réception</b>.</p></div>
+ <div class="note warn"><ul>
+  <li><b>Démissionner ne donne en principe pas droit au chômage</b> (allocation d’aide au retour à l’emploi). Exceptions : certaines <b>démissions jugées légitimes</b> par France Travail (par exemple pour suivre son conjoint qui déménage pour son travail, ou salaire non payé), et la démission pour un <b>projet de reconversion professionnelle</b> validé <b>avant</b> la démission. Renseignez-vous auprès de <b>France Travail</b> avant d’envoyer la lettre.</li>
+  <li>La démission est <b>définitive</b> : vous ne pouvez revenir dessus que si l’employeur l’accepte.</li>
+  <li>Le <b>préavis</b> est en principe obligatoire ; sa durée dépend de la convention collective, du contrat ou des usages. Une <b>dispense</b> à votre demande suppose l’accord de l’employeur, et le préavis non effectué n’est alors pas payé.</li>
+  <li>Cette lettre ne convient pas pour un CDD, une période d’essai ou un agent public (règles différentes).</li></ul></div>`,fields:[]},
+  {t:'Votre emploi',fields:[
+   {k:'poste',l:'Votre poste',ty:'text',h:'Exemple : « vendeuse », « technicien de maintenance ».'},
+   {k:'embauche',l:'Date d’embauche',ty:'date',h:'Facultatif.'},
+   {k:'ccn',l:'Convention collective',ty:'text',h:'Facultatif. Son nom figure sur votre bulletin de paie (exemple : « du commerce de détail et de gros à prédominance alimentaire »).'},
+   {k:'preav',l:'Durée de votre préavis',ty:'radio',o:PREAV,h:'La loi ne la fixe pas : elle figure dans votre convention collective, sinon dans votre contrat de travail.'},
+   {k:'preavtxt',l:'Quelle durée ?',ty:'text',h:'Exemple : « 15 jours », « 1 mois et demi ».',if:x=>x.preav==='autre',sub:1}],
+   post:()=>`<div id="dminfo">${demInfo()}</div>`},
+  {t:'Remise de la lettre',fields:[
+   {k:'mode',l:'Comment allez-vous la remettre ?',ty:'radio',o:[['main','En main propre, contre décharge'],['lrar','Lettre recommandée avec accusé de réception']]},
+   {k:'notif',l:'Date de remise (ou de présentation prévue)',ty:'date',h:'En recommandé, le préavis part de la première présentation de la lettre : comptez 2 à 3 jours après l’envoi.'},
+   {k:'dispense',l:'Demander à être dispensé du préavis ?',ty:'radio',o:YN,h:'L’employeur peut refuser.'},
+   {k:'depart',l:'Date de départ souhaitée',ty:'date',if:x=>x.dispense==='oui',sub:1,h:'Facultatif.'}],
+   post:()=>`<div id="dminfo2">${demInfo()}</div>`,live:['notif','preavtxt'],liveFn:()=>{const c=$('#dminfo2');if(c)c.innerHTML=demInfo()}},
+  {t:'Vous, le salarié',fields:SENDER()},
+  {t:'L’employeur',fields:RECIP('de l’employeur (entreprise)','Exemple : « SARL Boulangerie du Port — Service des ressources humaines ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:[],recapMore:()=>[],
+ recapBefore:()=>demInfo()+letterPreview(demObjet(),demParas()),
+ missing(){const m=letterMissing();if(!clean1(d.poste))m.unshift('votre poste');if(!d.notif)m.push('date de remise');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de le remettre.',
+ mailHint:'mail de l’employeur ou des ressources humaines',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p>${d.mode==='lrar'?'<b>Pour avoir une preuve :</b> imprimez le PDF et envoyez-le en <b>lettre recommandée avec accusé de réception</b>. Le mail seul ne prouve pas la date.':'<b>En main propre :</b> imprimez la lettre en deux exemplaires ; faites dater et signer la décharge en bas de page par l’employeur sur votre exemplaire, et gardez-le.'}</p></div>`,
+ fname:()=>`Lettre_demission${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:demObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma lettre de démission, qui vous est également ${d.mode==='lrar'?'adressée par courrier recommandé avec accusé de réception':'remise en main propre'}.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:demObjet(),head:demHead(),paras:demParas(),after:d.mode==='lrar'?[]:['Reçu en main propre le ____ / ____ / ________','Signature de l’employeur :']})}
+};
+
+/* ================= Document 23 : réclamation pour frais bancaires (client → banque) ================= */
+const FTYPES=[['ci','Commissions d’intervention'],['rejetp','Frais de rejet de prélèvement ou de virement'],['rejetc','Frais de chèque rejeté'],['agios','Agios (intérêts du découvert)'],['lettre','Frais de lettre d’information'],['autre','Autres frais']];
+const FRMOT=[['plafond','Les frais dépassent les plafonds légaux'],['fragile','Je suis en situation de fragilité financière'],['repete','Frais facturés plusieurs fois pour le même rejet'],['erreur','Frais dus à une erreur de la banque ou à un retard qui ne vient pas de moi'],['info','Je n’ai pas été prévenu du montant des frais à l’avance'],['geste','Difficulté passagère : je demande un geste commercial']];
+const has=(k,v)=>Array.isArray(d[k])&&d[k].includes(v);
+const fraisLines=()=>String(d.flignes||'').split('\n').map(clean1).filter(Boolean);
+function fraisParas(){
+ const L=[],lines=fraisLines(),tot=num(d.ftotal),types=(d.ftypes||[]).map(v=>(FTYPES.find(x=>x[0]===v)||[,''])[1].toLowerCase()).filter(Boolean);
+ L.push(`Titulaire du compte${clean1(d.fcompte)?` n° ${clean1(d.fcompte)}`:''} dans votre établissement, je conteste les frais prélevés sur ce compte${types.length?` (${types.join(', ')})`:''}${lines.length?` : ${lines.join(' ; ')}`:''}${isFinite(tot)?`, pour un total de ${eur(tot)}`:''}.`);
+ if(has('fmot','plafond'))L.push(`Or les commissions d’intervention ne peuvent dépasser 8 € par opération et 80 € par mois (article R. 312-4-1 du code monétaire et financier). Les frais de rejet d’un prélèvement ou d’un virement ne peuvent dépasser ni le montant de l’opération rejetée ni 20 €, et les frais pour un chèque rejeté sont limités à 30 € pour un chèque de 50 € ou moins et à 50 € au-delà.`);
+ if(has('fmot','fragile'))L.push(d.offre==='oui'
+  ?`Je bénéficie de l’offre spécifique destinée à la clientèle en situation de fragilité financière : les commissions d’intervention sont alors limitées à 4 € par opération et 20 € par mois (article R. 312-4-2 du code monétaire et financier), et l’ensemble des frais d’incidents bancaires à 20 € par mois et 200 € par an.`
+  :`Ma situation correspond à celle d’un client en situation de fragilité financière. Dans ce cas, l’ensemble des frais d’incidents bancaires, commissions d’intervention comprises, est plafonné à 25 € par mois. Je vous demande de m’appliquer ce plafond et de me proposer l’offre spécifique destinée à cette clientèle.`);
+ if(has('fmot','repete'))L.push(`Un même prélèvement ou virement présenté à nouveau après un premier rejet ne doit pas donner lieu à de nouveaux frais.`);
+ if(has('fmot','erreur'))L.push(`Ces frais résultent d’une situation dont je ne suis pas responsable.`);
+ if(has('fmot','info'))L.push(`Je n’ai pas reçu l’information sur le montant de ces frais, qui doit m’être communiquée au moins 14 jours avant leur prélèvement.`);
+ if(has('fmot','geste'))L.push(`Je traverse actuellement une difficulté passagère et vous demande, à titre commercial, de bien vouloir me rembourser ces frais.`);
+ if(clean1(d.fdetails))L.push(`Précisions : ${clean1(d.fdetails)}${/[.!?]$/.test(clean1(d.fdetails))?'':'.'}`);
+ L.push(`Je vous demande donc de me rembourser ${isFinite(tot)?`la somme de ${eur(tot)}`:'ces frais'} dans les meilleurs délais, et de m’indiquer par écrit la suite donnée à cette réclamation.`);
+ L.push(`À défaut de réponse satisfaisante dans un délai de deux mois, je saisirai le médiateur de votre établissement (article L. 316-1 du code monétaire et financier) ; je vous remercie de m’indiquer ses coordonnées.`);
+ return L;
+}
+const fraisObjet=()=>`Réclamation — remboursement de frais bancaires${clean1(d.fcompte)?' (compte n° '+clean1(d.fcompte)+')':''}`;
+const FRAIS={
+ key:'attest_frais_v1',title:'Réclamation frais bancaires',sub:'Demander le remboursement de frais injustifiés',
+ init:x=>{if(!x.le)x.le=today;if(!x.ftypes)x.ftypes=[];if(!x.fmot)x.fmot=[]},
+ maxPh:3,phLabels:[],phIntro:()=>`<p>Joignez si possible le <b>relevé de compte</b> (ou une capture de l’appli bancaire) où figurent les frais contestés. Les photos sont ajoutées à la fin du PDF (3 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter un relevé':'Photographier le relevé',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À demander à votre banque de rembourser des frais que vous estimez injustifiés : commissions d’intervention, frais de rejet, agios, frais de lettre…</p></div>
+ <div class="note warn"><ul>
+  <li><b>Commissions d’intervention</b> (frais facturés quand la banque examine une opération qui dépasse votre découvert) : au plus <b>8 € par opération et 80 € par mois</b> (article R. 312-4-1 du code monétaire et financier).</li>
+  <li><b>Clientèle en situation de fragilité financière</b> : frais d’incidents plafonnés à <b>25 € par mois</b>, commissions d’intervention comprises. Avec l’<b>offre spécifique</b> (3 € par mois au plus) : commissions d’intervention limitées à <b>4 € par opération et 20 € par mois</b>, frais d’incidents à 20 € par mois et 200 € par an.</li>
+  <li><b>Rejet de prélèvement ou de virement</b> : 20 € au plus, et jamais plus que le montant rejeté. <b>Chèque sans provision</b> : 30 € au plus (chèque de 50 € ou moins), 50 € au-delà.</li>
+  <li>La banque doit vous informer du montant des frais <b>au moins 14 jours avant</b> de les prélever (en général, en bas du relevé).</li>
+  <li>Écrivez d’abord à votre conseiller ou au service client. <b>Sans réponse dans les 2 mois</b>, ou si la réponse ne vous convient pas, saisissez le <b>médiateur de la banque</b> (gratuit ; ses coordonnées figurent sur la réponse, la convention de compte ou le site de la banque).</li></ul></div>`,fields:[]},
+  {t:'Les frais contestés',fields:[
+   {k:'ftypes',l:'Quels frais ?',ty:'check',o:FTYPES},
+   {k:'flignes',l:'Une ligne par frais : date, libellé, montant',ty:'area',h:'Exemple : « 05/11/2026 — commission d’intervention — 8 € ». Facultatif, mais conseillé.'},
+   {row:[{k:'ftotal',l:'Montant total réclamé (€)',ty:'text'},{k:'fcompte',l:'N° de compte',ty:'text',h:'Facultatif. Les derniers chiffres suffisent.'}]}]},
+  {t:'Pourquoi les contester ?',fields:[
+   {k:'fmot',l:'Cochez ce qui correspond à votre situation',ty:'check',o:FRMOT},
+   {k:'offre',l:'Avez-vous souscrit l’offre spécifique « clientèle fragile » ?',ty:'radio',o:[['oui','Oui'],['non','Non'],['nsp','Je ne sais pas']],if:x=>Array.isArray(x.fmot)&&x.fmot.includes('fragile'),sub:1},
+   {k:'fdetails',l:'Précisions',ty:'area',h:'Facultatif : ce qui s’est passé (salaire versé en retard, erreur de la banque, frais répétés…).'}]},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Votre banque',fields:RECIP('de la banque et de l’agence','Exemple : « Banque du Sud — Agence Castellane ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['flignes','fdetails'],recapMore:i=>i===1&&fraisLines().length?[['Frais',fraisLines().join(' ; ')]]:[],
+ recapBefore:()=>letterPreview(fraisObjet(),fraisParas()),
+ missing(){const m=letterMissing();if(!fraisLines().length&&!isFinite(num(d.ftotal)))m.unshift('frais contestés ou montant');if(!(d.fmot||[]).length)m.unshift('motif de la contestation');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'messagerie ou mail de votre conseiller',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> déposez le PDF dans la messagerie sécurisée de votre banque <b>ou</b> envoyez-le en <b>lettre recommandée avec accusé de réception</b> à votre agence, et gardez la preuve : le délai de 2 mois avant le médiateur part de cette réclamation écrite.</p></div>`,
+ fname:()=>`Reclamation_frais_bancaires${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:fraisObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma réclamation concernant des frais prélevés sur mon compte, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:fraisObjet(),paras:fraisParas(),pj:myPh().length?'Pièces jointes : relevés de compte.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+/* ================= Document 24 : demande de délai de paiement / échéancier (débiteur → créancier) ================= */
+const ECRE=[['impots','Impôts'],['fournisseur','Facture (énergie, téléphone, artisan…)'],['loyer','Loyer ou charges'],['hopital','Hôpital ou clinique'],['credit','Crédit'],['autre','Autre']];
+const ECRE_TXT={impots:'mon imposition',fournisseur:'votre facture',loyer:'ma dette de loyer et de charges',hopital:'votre facture de frais d’hospitalisation',credit:'les échéances de mon crédit',autre:'la somme que je vous dois'};
+const EMOTIF=[['emploi','Perte d’emploi ou baisse d’activité'],['sante','Maladie ou accident'],['separation','Séparation ou décès dans la famille'],['baisse','Baisse de revenus'],['imprevu','Dépense imprévue'],['autre','Autre']];
+const EMOTIF_TXT={emploi:'de la perte de mon emploi ou d’une baisse de mon activité',sante:'d’une maladie ou d’un accident',separation:'d’une séparation ou d’un décès dans ma famille',baisse:'d’une baisse de mes revenus',imprevu:'d’une dépense imprévue',autre:'de difficultés financières passagères'};
+function echCalc(){
+ const tot=num(d.emontant),ap=num(d.eapport)>0?num(d.eapport):0,n=Math.max(0,parseInt(d.enb)||0);
+ const reste=isFinite(tot)?Math.round((tot-ap)*100)/100:NaN;
+ if(!(reste>0)||!n)return {tot,ap,n,reste,ok:false};
+ const m=Math.floor(reste*100/n)/100,last=Math.round((reste-m*(n-1))*100)/100;
+ const dates=d.edebut?Array.from({length:n},(_,i)=>addMonths(d.edebut,i)):[];
+ return {tot,ap,n,reste,m,last,dates,ok:true,fin:dates[n-1]};
+}
+function echInfo(){
+ const c=echCalc();
+ if(!c.ok)return `<div class="note"><p>Indiquez le montant dû et le nombre de mensualités : l’appli calcule l’échéancier.</p></div>`;
+ return `<div class="note"><p><b>Votre proposition : ${c.ap?`${eur(c.ap)} tout de suite, puis `:''}${c.n} mensualité${c.n>1?'s':''} de ${eur(c.m)}</b>${c.last!==c.m?` (la dernière de ${eur(c.last)})`:''}${c.dates.length?`, du ${esc(fr(c.dates[0]))} au ${esc(fr(c.fin))}`:''}.</p><p style="font-size:13px;color:var(--mute)">Proposez une mensualité que vous pourrez vraiment tenir : un échéancier non respecté est en général annulé.</p></div>`;
+}
+function echParas(){
+ const c=echCalc(),L=[],ref=clean1(d.eref),obj=clean1(d.eobjet)||ECRE_TXT[d.ecre]||'la somme que je vous dois';
+ L.push(`Ma demande concerne ${obj}${ref?` (référence ${ref})`:''}, d’un montant de ${isFinite(c.tot)?eur(c.tot):'…'}${d.eech?`, à régler avant le ${fr(d.eech)}`:''}.`);
+ L.push(`Je ne suis pas en mesure de régler cette somme en une seule fois, en raison ${EMOTIF_TXT[d.emotif]||'de difficultés financières passagères'}${clean1(d.edetails)?` : ${clean1(d.edetails).replace(/[.]$/,'')}`:''}.${isFinite(num(d.eres))?` Mes ressources mensuelles s’élèvent à environ ${eur(num(d.eres))}${isFinite(num(d.echg))?` et mes charges fixes à environ ${eur(num(d.echg))}`:''}.`:''}`);
+ if(c.ok)L.push(`Souhaitant m’acquitter de ma dette, je vous propose ${c.ap?`de verser ${eur(c.ap)} dès réception de votre accord, puis `:''}de régler ${c.ap?'le solde de ':''}${eur(c.reste)} en ${c.n} mensualité${c.n>1?'s':''} de ${eur(c.m)}${c.last!==c.m?` (la dernière de ${eur(c.last)})`:''}${c.dates.length?`, du ${fr(c.dates[0])} au ${fr(c.fin)}${c.n>1?', le même jour de chaque mois':''}`:''}.`);
+ else L.push(`Souhaitant m’acquitter de ma dette, je vous demande de m’accorder un délai de paiement ou un échéancier adapté à ma situation.`);
+ L.push(d.ecre==='impots'
+  ?`Je vous remercie de bien vouloir m’accorder ce plan de règlement et d’examiner, le cas échéant, une remise gracieuse des pénalités liées à ce retard.`
+  :`Je vous remercie de bien vouloir accepter cet échéancier et, pendant son exécution, de suspendre toute procédure de recouvrement ainsi que l’application de pénalités de retard.`);
+ L.push(`Je reste à votre disposition pour vous fournir tout justificatif de ma situation et vous remercie de me confirmer votre accord par écrit.`);
+ return L;
+}
+const echObjet=()=>`Demande de délai de paiement${clean1(d.eref)?' — référence '+clean1(d.eref):''}`;
+const ECHEANCIER={
+ key:'attest_echeancier_v1',title:'Demande de délai de paiement',sub:'Proposer un échéancier à un créancier',
+ init:x=>{if(!x.le)x.le=today;if(!x.enb)x.enb='6'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez si possible la <b>facture ou l’avis</b> concerné et des <b>justificatifs de votre situation</b> (bulletin de salaire, attestation de France Travail, arrêt maladie…). Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter un justificatif':'Photographier la facture ou l’avis',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À demander à un créancier (impôts, fournisseur d’énergie, bailleur, hôpital, organisme de crédit…) de payer une dette en plusieurs fois, en proposant un échéancier réaliste.</p></div>
+ <div class="note warn"><ul>
+  <li>Écrivez <b>avant</b> la date limite de paiement si possible, et continuez à payer ce que vous pouvez.</li>
+  <li><b>Impôts :</b> la demande de délai se fait en ligne depuis votre <b>espace particulier sur impots.gouv.fr</b> (messagerie sécurisée). L’administration répond en principe dans les 2 mois ; sans réponse, la demande est considérée comme rejetée. En cas de refus, vous pouvez contacter le conciliateur fiscal départemental.</li>
+  <li>Le créancier n’est pas obligé d’accepter. Le juge peut, lui, reporter ou échelonner une dette dans la limite de <b>2 ans</b> (article 1343-5 du code civil).</li>
+  <li><b>Plusieurs dettes que vous ne pouvez plus payer ?</b> Le <b>dossier de surendettement</b> se dépose auprès de la <b>Banque de France</b> (gratuit, possible en ligne). Un Point conseil budget ou un CCAS peut vous aider.</li></ul></div>`,fields:[]},
+  {t:'Votre dette',fields:[
+   {k:'ecre',l:'À qui devez-vous cette somme ?',ty:'radio',o:ECRE},
+   {k:'eobjet',l:'De quoi s’agit-il ?',ty:'text',h:'Facultatif. Exemple : « la facture d’électricité de septembre 2026 », « le solde de mon impôt sur le revenu 2025 ».'},
+   {row:[{k:'eref',l:'N° de facture, d’avis ou de dossier',ty:'text'},{k:'emontant',l:'Montant dû (€)',ty:'text'}]},
+   {k:'eech',l:'Date limite de paiement',ty:'date',h:'Facultatif.'}]},
+  {t:'Votre proposition',fields:[
+   {k:'eapport',l:'Premier versement tout de suite (€)',ty:'text',h:'Facultatif.'},
+   {row:[{k:'enb',l:'Nombre de mensualités',ty:'tel'},{k:'edebut',l:'Date de la 1re mensualité',ty:'date'}]}],
+   post:()=>`<div id="einfo">${echInfo()}</div>`,live:['eapport','enb','edebut'],liveFn:()=>{const c=$('#einfo');if(c)c.innerHTML=echInfo()}},
+  {t:'Votre situation',fields:[
+   {k:'emotif',l:'Pourquoi ne pouvez-vous pas payer en une fois ?',ty:'radio',o:EMOTIF},
+   {k:'edetails',l:'Expliquez en quelques mots',ty:'area',h:'Facultatif. Exemple : « licencié en septembre, j’attends l’ouverture de mes droits ».'},
+   {row:[{k:'eres',l:'Ressources par mois (€)',ty:'text',h:'Facultatif'},{k:'echg',l:'Charges fixes par mois (€)',ty:'text',h:'Facultatif'}]}]},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le créancier',fields:RECIP('du créancier','Exemple : « Service des impôts des particuliers de Marseille », « EDF », « CHU de Bordeaux ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['edetails'],recapMore:()=>[],
+ recapBefore:()=>echInfo()+letterPreview(echObjet(),echParas()),
+ missing(){const m=letterMissing();if(!isFinite(num(d.emontant)))m.unshift('montant dû');if(!echCalc().ok)m.push('proposition de mensualités');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'mail ou messagerie du créancier',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> ${d.ecre==='impots'?'déposez le PDF dans la <b>messagerie sécurisée</b> de votre espace particulier sur impots.gouv.fr (rubrique paiement), ou envoyez-le au service indiqué sur votre avis.':'utilisez l’adresse ou la messagerie indiquée sur la facture, ou envoyez la lettre en <b>recommandé avec accusé de réception</b> pour garder une preuve.'} Conservez une copie.</p></div>`,
+ fname:()=>`Demande_delai_paiement${fnDest()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:echObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma demande de délai de paiement, avec une proposition d’échéancier et mes justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:echObjet(),paras:echParas(),rec:false,pj:myPh().length?'Pièces jointes : facture ou avis et justificatifs de ma situation.':'',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS,conformite:CONFORMITE,sepa:SEPA,insalubre:INSALUBRE,depot:DEPOT,demission:DEMISSION,frais:FRAIS,echeancier:ECHEANCIER};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
