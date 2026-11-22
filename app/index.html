@@ -76,8 +76,8 @@ nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .ph figcaption input{flex:1}
 .phadd{display:grid;gap:10px}
 .phbtn{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 12px}
-.modes{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin:0 0 14px}
-.modes button{min-height:46px;border:0;border-radius:10px;background:none;font:600 14px/1.2 Inter,sans-serif;color:var(--mute);cursor:pointer;padding:6px 8px}
+.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin:0 0 14px}
+.modes button{min-height:46px;border:0;border-radius:10px;background:none;font:600 13px/1.2 Inter,sans-serif;color:var(--mute);cursor:pointer;padding:6px 8px}
 .modes button.on{background:var(--blue);color:#fff}
 .note{padding:12px 14px;border-radius:12px;background:var(--blue2);font-size:14px;margin:0 0 16px}
 .note p{margin:0 0 8px}.note p:last-child{margin:0}
@@ -109,7 +109,7 @@ textarea.big{min-height:170px}
   <div class="prog"><i id="bar"></i></div>
 </header>
 <main>
-  <div class="modes" id="modes" role="tablist" aria-label="Document à remplir"><button type="button" role="tab" data-mode="constat">Constat amiable dégât des eaux</button><button type="button" role="tab" data-mode="decl">Déclaration de sinistre à l’assureur</button></div>
+  <div class="modes" id="modes" role="tablist" aria-label="Document à remplir"><button type="button" role="tab" data-mode="constat">Constat amiable</button><button type="button" role="tab" data-mode="decl">Déclaration de sinistre</button><button type="button" role="tab" data-mode="contest">Contester l’indemnisation</button></div>
   <div class="steps" id="dots"></div>
   <form class="step" id="step" autocomplete="on"></form>
 </main>
@@ -126,7 +126,7 @@ const CAP=window.Capacitor,NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlat
 const PARTNER={nom:'Vitfix',mail:'vitfix.applis@gmail.com'};
 /* Deux documents dans la même appli : constat amiable (mode « constat ») et déclaration de sinistre à l'assureur (mode « decl ») */
 const MODEKEY='cdde_mode';
-let mode='constat';try{if(localStorage.getItem(MODEKEY)==='decl')mode='decl';const q=new URLSearchParams(location.search).get('mode');if(q==='decl'||q==='constat')mode=q}catch(e){}
+let mode='constat';try{const sm=localStorage.getItem(MODEKEY);if(sm==='decl'||sm==='contest')mode=sm;const q=new URLSearchParams(location.search).get('mode');if(q==='decl'||q==='constat'||q==='contest')mode=q}catch(e){}
 let KEY='constatDDE_v1';
 let d={};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}};
@@ -235,6 +235,66 @@ const DSTEPS=[
  {t:'Photos et justificatifs',photos:1,fields:[]},
  {t:'Récapitulatif et envoi',recap:1,fields:[]}
 ];
+/* ---------- Contestation de l'indemnisation (3e document) ---------- */
+const CMOT=[['montant','Indemnisation trop faible'],['refus','Refus de garantie'],['vetuste','Vétusté ou franchise contestée'],['retard','Indemnisation qui tarde'],['autre','Autre désaccord']];
+const CTSTEPS=[
+ {t:'Le désaccord',fromdecl:1,fields:[
+  {k:'motif',l:'Que contestez-vous ?',ty:'radio',o:CMOT},
+  {k:'type',l:'Quel était le sinistre ?',ty:'radio',o:TYPES},
+  {k:'autretype',l:'Lequel ?',ty:'text',if:x=>x.type==='autre',sub:1},
+  {row:[{k:'date',l:'Date du sinistre',ty:'date'},{k:'decl',l:'Date de votre déclaration',ty:'date'}]}]},
+ {t:'Vous, l’assuré',fields:[
+  {k:'nom',l:'Nom et prénom',ty:'text',ac:'name'},
+  {k:'adr',l:'Adresse',ty:'area'},
+  {row:[{k:'tel',l:'Téléphone',ty:'tel'},{k:'mail',l:'Mail',ty:'email'}]}]},
+ {t:'Votre assureur',fields:[
+  {k:'assureur',l:'Nom de l’assureur',ty:'text'},
+  {k:'assadr',l:'Adresse du service sinistres ou réclamations',ty:'area',h:'Elle figure sur les courriers de l’assureur ou dans votre contrat (rubrique « réclamations »).'},
+  {row:[{k:'contrat',l:'N° de contrat',ty:'text'},{k:'sinistre',l:'N° de sinistre',ty:'text'}]}]},
+ {t:'La position de l’assureur',fields:[
+  {k:'decdate',l:'Date du courrier ou du rapport de l’assureur',ty:'date',if:x=>x.motif!=='retard'},
+  {row:[{k:'propose',l:'Indemnité proposée (€)',ty:'text'},{k:'estime',l:'Montant que vous réclamez (€)',ty:'text'}],if:x=>x.motif!=='refus'},
+  {k:'base',l:'Sur quoi repose votre montant ?',ty:'text',h:'Ex. : devis de l’entreprise X du 10/11, factures d’achat, estimation d’un expert.',if:x=>x.motif!=='refus'},
+  {k:'refusmotif',l:'Motif du refus invoqué par l’assureur',ty:'text',h:'Ex. : « défaut d’entretien », « exclusion », « déclaration tardive ».',if:x=>x.motif==='refus'},
+  {k:'justifdate',l:'Date d’envoi de vos derniers justificatifs',ty:'date',if:x=>x.motif==='retard'},
+  {k:'expert',l:'Un expert de l’assurance est-il passé ?',ty:'radio',o:YN},
+  {row:[{k:'expertnom',l:'Nom ou cabinet de l’expert',ty:'text'},{k:'expertdate',l:'Date de l’expertise',ty:'date'}],if:x=>x.expert==='oui',sub:1},
+  {k:'args',l:'Pourquoi n’êtes-vous pas d’accord ?',ty:'area',big:1,h:'Ex. : dommages oubliés par l’expert, vétusté excessive, prix sous-évalués, garantie pourtant prévue au contrat (citez l’article).'}]},
+ {t:'Votre demande',fields:[
+  {k:'demande',l:'Vous demandez…',ty:'radio',o:[['reexamen','Le réexamen et un complément d’indemnisation'],['contre','Une contre-expertise'],['both','Les deux']]},
+  {k:'cdelai',l:'Délai laissé à l’assureur',ty:'radio',o:[['15','15 jours'],['30','30 jours']]}]},
+ {t:'Signature',sign:['D'],fields:[
+  {row:[{k:'faita',l:'Fait à',ty:'text'},{k:'le',l:'Le',ty:'date'}]}]},
+ {t:'Photos et justificatifs',photos:1,fields:[]},
+ {t:'Récapitulatif et envoi',recap:1,fields:[]}
+];
+function contestNote(){
+ return `<div class="note"><p><b>Avant d’écrire :</b> relisez votre contrat (garanties, exclusions, franchise, vétusté, clause d’expertise) et le rapport de l’expert. Vous pouvez demander une copie du rapport.</p><ul>
+ <li>Une <b>contre-expertise</b> par votre propre expert est possible ; ses honoraires sont parfois pris en charge par le contrat (garantie « honoraires d’expert »).</li>
+ <li>Adressez d’abord la lettre au service sinistres ou réclamations. Sans réponse satisfaisante sous 2 mois, vous pouvez saisir gratuitement la <b>Médiation de l’assurance</b> (mediation-assurance.org).</li>
+ <li>Attention au délai : en principe, une action contre l’assureur se prescrit par <b>2 ans</b> (article L114-1 du Code des assurances).</li></ul></div>`;
+}
+function declData(){try{return JSON.parse(localStorage.getItem('declSinistre_v1')||'{}')}catch(e){return{}}}
+function fromDeclHTML(){const c=declData();if(!clean1(c.nom))return '';return `<div class="note"><p>Vous avez une déclaration de sinistre${c.date?' du '+fr(c.date):''}. Reprendre ses informations ?</p><button type="button" class="btn" data-fromdecl="1" style="width:100%;margin-top:8px;min-height:48px">Reprendre ma déclaration (${esc(clean1(c.nom))})</button></div>`}
+function fromDecl(){const c=declData();for(const k of ['nom','adr','tel','mail','assureur','assadr','contrat','sinistre','type','autretype','date','faita'])if(c[k]&&!d[k])d[k]=c[k];if(c.le&&!d.decl)d.decl=c.le;save()}
+function cletter(){
+ const x=d,c=clean1,T=tlab(x),mt=v=>num(v)?eur(num(v)):'…';
+ const objet=`Contestation de l’indemnisation - ${T} du ${fr(x.date)||'...'} - contrat n° ${c(x.contrat)||'...'}${c(x.sinistre)?' - sinistre n° '+c(x.sinistre):''}`;
+ const P=[];
+ P.push(`Assuré(e) auprès de votre compagnie au titre du contrat n° ${c(x.contrat)||'...'}, je vous ai déclaré${x.decl?' le '+fr(x.decl):''} un sinistre (${T}) survenu le ${fr(x.date)||'...'}${c(x.sinistre)?', enregistré sous le n° '+c(x.sinistre):''}.`);
+ const exp=x.expert==='oui'?`, sur la base du rapport de l’expert${c(x.expertnom)?' '+c(x.expertnom):''}${x.expertdate?' (expertise du '+fr(x.expertdate)+')':''}`:'';
+ if(x.motif==='refus')P.push(`Par courrier du ${fr(x.decdate)||'...'}, vous avez refusé votre garantie${c(x.refusmotif)?' au motif suivant : « '+c(x.refusmotif)+' »':''}${exp}. Je conteste ce refus.`);
+ else if(x.motif==='retard')P.push(`Malgré l’envoi de l’ensemble des justificatifs demandés${x.justifdate?' le '+fr(x.justifdate):''}, je n’ai toujours reçu aucune indemnisation${num(x.propose)?` (montant proposé : ${mt(x.propose)})`:''}${exp}. Je vous rappelle que l’assureur doit exécuter sa prestation dans le délai convenu (article L113-5 du Code des assurances).`);
+ else P.push(`Par courrier du ${fr(x.decdate)||'...'}, vous m’avez proposé une indemnisation de ${mt(x.propose)}${exp}${x.motif==='vetuste'?', après application d’une vétusté ou d’une franchise que je conteste':''}. Cette somme ne couvre pas les préjudices subis, que j’évalue à ${mt(x.estime)}${c(x.base)?' ('+c(x.base)+')':''}.`);
+ if(c(x.args))P.push(String(x.args).trim().replace(/\.?\s*$/,'.'));
+ const dem=x.demande||'reexamen';
+ if(dem!=='contre')P.push(x.motif==='refus'?'Je vous demande en conséquence de réexaminer mon dossier et d’accorder votre garantie.':`Je vous demande en conséquence de réexaminer mon dossier${num(x.estime)?` et de porter l’indemnisation à ${mt(x.estime)}`:''}.`);
+ if(dem!=='reexamen')P.push('Je vous informe de mon intention de faire procéder à une contre-expertise, et vous demande de me communiquer la copie complète du rapport d’expertise. Le cas échéant, je demande la mise en œuvre de la procédure d’expertise contradictoire prévue par mon contrat.');
+ P.push(`Je vous remercie de me répondre dans un délai de ${x.cdelai||'30'} jours. À défaut de réponse satisfaisante, je saisirai la Médiation de l’assurance, puis, si nécessaire, la juridiction compétente.`);
+ if(photos.length)P.push(`${photos.length} pièce${photos.length>1?'s':''} justificative${photos.length>1?'s':''} figure${photos.length>1?'nt':''} en annexe.`);
+ P.push('Veuillez agréer, Madame, Monsieur, l’expression de mes salutations distinguées.');
+ return {objet,paras:P};
+}
 const ETATS=[['vole','Volé'],['endo','Endommagé'],['detruit','Détruit']];
 const num=v=>{const n=parseFloat(String(v??'').replace(/\s| /g,'').replace(',','.'));return isFinite(n)?n:0};
 const eur=n=>n.toLocaleString('fr-FR',{minimumFractionDigits:n%1?2:0,maximumFractionDigits:2})+' €';
@@ -284,7 +344,7 @@ const mkIDB=name=>{let p;
  const tx=async(m,f)=>{const x=await db();return new Promise((res,rej)=>{const t=x.transaction('photos',m),r=f(t.objectStore('photos'));t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error)})};
  return{all:()=>tx('readonly',s=>s.getAll()),put:o=>tx('readwrite',s=>s.put(o)),del:id=>tx('readwrite',s=>s.delete(id)),clear:()=>tx('readwrite',s=>s.clear())};
 };
-const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre')};
+const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre'),contest:mkIDB('contestIndem')};
 let IDB=IDBS.constat;
 const purl=p=>{if(!purls.has(p.id))purls.set(p.id,URL.createObjectURL(p.blob));return purls.get(p.id)};
 async function shrink(file){
@@ -340,6 +400,7 @@ function render(){
  if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p))h+=`<p class="kicker" style="margin:-8px 0 14px">${s.p==='A'?'Partie A : en principe l’occupant du local d’où provient l’eau, ou le premier signataire.':'Partie B : l’autre personne concernée (voisin, propriétaire…). Laissez vide si elle n’existe pas.'}</p>`;
  if(s.quick){let m=null;try{m=JSON.parse(localStorage.getItem('constatDDE_syndic')||'null')}catch(e){}h+=m?`<button type="button" class="quick" id="syn-use">Reprendre : ${esc(m.syndic.split('\n')[0])}</button> <button type="button" class="link" id="syn-save">Mémoriser ce syndic</button>`:`<button type="button" class="link" id="syn-save">Mémoriser ce syndic pour les prochains constats</button>`}
  if(s.delai)h+=prefillHTML();
+ if(s.fromdecl)h+=fromDeclHTML()+contestNote();
  h+=s.fields.map(fieldHTML).join('');
  if(s.delai)h+=delaiHTML();
  if(s.items)h+=itemsHTML();
@@ -378,7 +439,7 @@ function recapHTML(){
  </div>${M().recapAfter?M().recapAfter():''}${devisHTML()}<div id="out"></div>`;
 }
 function devisHTML(){
- if(mode==='decl'){if(!clean1(d.dombat)||isVol(d))return '';
+ if(mode==='decl'||mode==='contest'){if(!clean1(d.dombat||d.args)||isVol(d))return '';
   return `<section class="devis"><h3>Besoin d’une entreprise pour chiffrer la remise en état ?</h3>
   <p>L’assureur demande souvent un devis. ${esc(PARTNER.nom)}, entreprise partenaire, peut l’établir. La demande part par mail avec votre déclaration${photos.length?' et les photos':''} en pièce jointe ; vous la relisez et l’envoyez vous-même.</p>
   <button type="button" class="btn" data-devis="D">Demander un devis</button></section>`}
@@ -398,6 +459,7 @@ document.addEventListener('click',e=>{
  if(e.target.id==='addit'){d.items=[...(d.items||[]),{}];save();keepScroll();const l=document.querySelectorAll('[data-ik="des"]');l[l.length-1]&&l[l.length-1].focus();return}
  const di=e.target.closest('[data-delit]');if(di){d.items.splice(+di.dataset.delit,1);save();keepScroll();return}
  const pf=e.target.closest('[data-prefill]');if(pf){prefill(pf.dataset.prefill);keepScroll();return}
+ if(e.target.closest('[data-fromdecl]')){fromDecl();keepScroll();return}
  if(e.target.dataset.todecl!=null){const P=e.target.dataset.todecl;setMode('decl');if(P&&!clean1(d.nom)){prefill(P);cur=0;render()}return}
 });
 document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;
@@ -414,7 +476,7 @@ document.addEventListener('click',e=>{
 });
 $('#prev').onclick=()=>{if(cur>0){cur--;render()}};
 $('#next').onclick=()=>{
- if(cur===STEPS.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses et commencer ${mode==='decl'?'une nouvelle déclaration':'un nouveau constat'} ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;$('#reset').onclick=()=>{d={le:today};save();photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{});cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
+ if(cur===STEPS.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses et commencer ${mode==='decl'?'une nouvelle déclaration':mode==='contest'?'une nouvelle contestation':'un nouveau constat'} ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;$('#reset').onclick=()=>{d={le:today};save();photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{});cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
  cur++;render()};
 $('#step').addEventListener('submit',e=>e.preventDefault());
 
@@ -585,14 +647,14 @@ async function buildDecl(){
  let pg=doc.addPage([W,H]),y=H-60;
  const newPage=()=>{pg=doc.addPage([W,H]);y=H-60};
  const line=(s,f=font,x=Mg,size=SZ)=>{if(y<70)newPage();pg.drawText(s,{x,y,size,font:f,color:K});y-=LH};
- const block=(arr,x=Mg)=>arr.filter(Boolean).forEach(s=>String(s).split('\n').map(clean1).filter(Boolean).forEach(l=>line(enc(l),font,x)));
+ const block=(arr,x=Mg)=>arr.filter(Boolean).forEach(s=>String(s).split('\n').map(clean1).filter(Boolean).forEach(l=>wrapT(enc(l),font,SZ,W-Mg-x).forEach(w=>line(w,font,x))));
  block([d.nom,d.adr,d.tel&&'Tél. : '+d.tel,d.mail]);
  y-=8;
  block([d.assureur,d.assadr],W/2+10);
  y-=10;
  line(enc(`${clean1(d.faita)||'...'}, le ${fr(d.le)||'...'}`),font,W/2+10);
  y-=8;
- const l=dletter();
+ const l=(M().letter||dletter)();
  for(const s of wrapT(enc('Objet : '+l.objet),bold,SZ,TW))line(s,bold);
  y-=10;
  line('Madame, Monsieur,');y-=6;
@@ -626,7 +688,7 @@ async function buildDecl(){
  const sx=W/2+10;
  if(d.sigtD&&d.sigD){const im=await doc.embedPng(d.sigtD),k=Math.min(170/im.width,60/im.height);pg.drawImage(im,{x:sx,y:y-im.height*k,width:im.width*k,height:im.height*k});y-=im.height*k+16}
  line(enc(clean1(d.nom)),font,sx);
- await photoPages(doc,font,enc(`Annexe photos - déclaration de sinistre (${tlab(d)}) du ${fr(d.date)||'...'}`),enc(clean1(d.lieu)||clean1(d.adr)));
+ await photoPages(doc,font,enc(`Annexe ${mode==='contest'?'- contestation de l’indemnisation':'photos - déclaration de sinistre'} (${tlab(d)}) du ${fr(d.date)||'...'}`),enc(clean1(d.lieu)||clean1(d.adr)));
  doc.setTitle(enc(l.objet));doc.setAuthor('');
  doc.setCreator('Constat dégâts des eaux - Vitfix');doc.setProducer('Constat dégâts des eaux - Vitfix');
  return await doc.save();
@@ -650,7 +712,15 @@ const MODES={
   saved:n=>'PDF enregistré dans Documents › Declarations : '+esc(n)+'.',
   recapBefore:()=>{const l=dletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>p.table?`<p>${esc(p.intro)}</p><ul style="margin:0 0 8px;padding-left:20px">${p.table.map(it=>`<li>${esc(clean1(it.des)||'Bien')}${num(it.val)?' — '+esc(eur(num(it.val))):''}</li>`).join('')}</ul>`:`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
   recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve de la date :</b> envoyez la déclaration par mail à votre assureur ou par l’espace client, ou imprimez-la et envoyez-la en <b>lettre recommandée avec accusé de réception</b>. Joignez le récépissé de plainte, le constat amiable et les factures si vous les avez.</p></div>`,
-  build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()}
+  build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()},
+ contest:{key:'contestIndem_v1',steps:CTSTEPS,title:'Contester l’indemnisation',sub:'Indemnité trop faible, refus de garantie, contre-expertise',letter:()=>cletter(),
+  newLabel:'Nouvelle contestation',folder:'Contestations',mailPh:'service sinistres ou réclamations de l’assureur',
+  mailInfo:'Choisissez Gmail ou Outlook dans la liste : la lettre en PDF est jointe automatiquement.',
+  saved:n=>'PDF enregistré dans Documents › Contestations : '+esc(n)+'.',
+  recapBefore:()=>{const l=cletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
+  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve :</b> envoyez la lettre en <b>recommandé avec accusé de réception</b> au service sinistres ou réclamations (ou par l’espace client). Sans réponse satisfaisante sous 2 mois, saisissez gratuitement la Médiation de l’assurance (mediation-assurance.org).</p></div>`,
+  build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Contestation_indemnisation_${d.le||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},
+  mail:()=>{const l=cletter();return {to:clean1(d.mailto),subj:l.objet,body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma contestation de l’indemnisation proposée pour le sinistre du ${fr(d.date)||'…'} (contrat n° ${clean1(d.contrat)||'…'}).\n\nCordialement,\n${clean1(d.nom)}`}}}
 };
 const M=()=>MODES[mode];
 const buildPDF=()=>M().build();
@@ -674,8 +744,8 @@ function devisParts(P){
  if(P==='D'){const g=k=>clean1(d[k]);
   const body=[`Bonjour,`,``,`Suite à un sinistre (${tlab(d)}${d.date?' survenu le '+fr(d.date):''}), je souhaite un devis pour la remise en état des dommages.`,``,
    `Nom : ${g('nom')||'…'}`,`Adresse : ${g('lieu')||g('adr')||'…'}`,`Téléphone : ${g('tel')||'…'}`,`Mail : ${g('mail')||'…'}`,
-   `Dommages : ${g('dombat')||'non précisés'}`,`Assureur : ${g('assureur')||'…'}${g('sinistre')?' (sinistre n° '+g('sinistre')+')':''}`,``,
-   `Ma déclaration de sinistre${photos.length?` (avec ${photos.length} photo${photos.length>1?'s':''} en annexe)`:''} est en pièce jointe.`,``,`Cordialement,`,g('nom')].join('\n');
+   `Dommages : ${g('dombat')||g('args')||'non précisés'}`,`Assureur : ${g('assureur')||'…'}${g('sinistre')?' (sinistre n° '+g('sinistre')+')':''}`,``,
+   `${mode==='contest'?'Ma contestation':'Ma déclaration de sinistre'}${photos.length?` (avec ${photos.length} photo${photos.length>1?'s':''} en annexe)`:''} est en pièce jointe.`,``,`Cordialement,`,g('nom')].join('\n');
   return {to:PARTNER.mail,subj:`Demande de devis — ${tlab(d)} — ${g('lieu')||g('adr')||g('nom')}`,body}}
  const g=k=>clean1(d[P+'_'+k]);
  const adr=[g('adresse')||clean1(d.adresse),g('bat')&&'bât. '+g('bat'),g('etage')&&'étage '+g('etage')].filter(Boolean).join(', ');
@@ -726,14 +796,14 @@ function bindRecap(){
   }
   const url=webDownload(bytes);say('Si le téléchargement ne démarre pas, <a href="'+url+'" target="_blank" rel="noopener">ouvrez le PDF ici</a>.');
  });
- $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,M().mail(),mode==='decl'?'Envoyer la déclaration':'Envoyer le constat')));
+ $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,M().mail(),mode==='decl'?'Envoyer la déclaration':mode==='contest'?'Envoyer la contestation':'Envoyer le constat')));
  document.querySelectorAll('[data-devis]').forEach(b=>b.onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,devisParts(b.dataset.devis),'Demander un devis'))));
 }
 function clean1(s){return String(s||'').replace(/\s+/g,' ').trim()}
 
 setMode(mode);
 window.addEventListener('resize',()=>{if(STEPS[cur].sign)STEPS[cur].sign.forEach(setupSig)});
-window.__cdde={build:()=>buildPDF(),letter:()=>dletter(),setMode};
+window.__cdde={build:()=>buildPDF(),letter:()=>dletter(),cletter:()=>cletter(),setMode};
 
 /* Bouton retour Android = étape précédente ; quitte l'appli à la 1re étape */
 if(NATIVE&&CAP.Plugins.App){

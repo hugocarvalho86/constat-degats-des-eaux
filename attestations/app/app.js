@@ -27,6 +27,7 @@ const CATALOG=[
  {id:'fps',t:'Contester un forfait post-stationnement (FPS)',s:'Recours à la mairie dans le mois : délai calculé, motifs, justificatifs'},
  {id:'fraude',t:'Paiement frauduleux par carte',s:'Contester un paiement non autorisé et demander le remboursement'},
  {id:'honneur',t:'Attestation sur l’honneur',s:'Domicile, situation, exactitude d’un dossier… avec la mention légale'},
+ {id:'recours',t:'Recours CAF, CPAM, France Travail',s:'Contester une décision, un trop-perçu, demander une remise de dette'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -614,7 +615,7 @@ async function letterPDF(o){
  let pg=pdf.addPage([W,H]),y=H-60;
  const newPage=()=>{pg=pdf.addPage([W,H]);y=H-60};
  const line=(s,f=font,x=M)=>{if(y<64)newPage();pg.drawText(s,{x,y,size:SZ,font:f,color:C});y-=LH};
- const block=(arr,x=M)=>arr.filter(Boolean).forEach(s=>line(enc(clean1(s)),font,x));
+ const block=(arr,x=M)=>arr.filter(Boolean).forEach(s=>wrap(enc(clean1(s)),font,SZ,[W-M-x]).forEach(l=>line(l,font,x)));
  block(senderLines());y-=8;
  block(recipLines(),W/2+10);y-=10;
  line(enc(`${clean1(d.faita)||clean1(d.ville)||'…'}, le ${fr(d.le)||'…'}`),font,W/2+10);y-=8;
@@ -1316,7 +1317,94 @@ const HONNEUR={
 };
 document.addEventListener('click',e=>{if(e.target.closest('#usemod')&&doc===HONNEUR){d.htexte=hModel();save();keepScroll()}});
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR};
+/* ================= Document 17 : recours contre un organisme social (CAF, CPAM, MSA, France Travail) ================= */
+const ORGS=[['caf','CAF (allocations familiales)'],['cpam','CPAM (Assurance maladie)'],['msa','MSA'],['ft','France Travail'],['autre','Autre organisme']];
+const ORG_NOM={caf:'la Caisse d’allocations familiales',cpam:'la Caisse primaire d’assurance maladie',msa:'la Mutualité sociale agricole',ft:'France Travail',autre:'votre organisme'};
+const ORG_ID={caf:'N° d’allocataire',cpam:'N° de sécurité sociale',msa:'N° de sécurité sociale ou d’adhérent',ft:'Identifiant France Travail',autre:'N° de dossier'};
+const RDEM=[['contest','Contester une décision'],['remise','Demander une remise de dette (trop-perçu)'],['echelon','Demander un échelonnement']];
+const hasCRA=()=>['caf','cpam','msa'].includes(d.org);
+function recoursFin(){if(d.rdem!=='contest'||!d.notif)return null;let e=isoD(addMonths(d.notif,2));while(e.getUTCDay()===0||e.getUTCDay()===6||ferie(e))e=new Date(e.getTime()+864e5);return isoS(e)}
+function recoursInfo(){
+ const fin=recoursFin();let h='';
+ if(d.rdem==='contest'){
+  if(hasCRA())h+=`<p><b>Recours amiable :</b> la contestation est examinée par la <b>commission de recours amiable</b> de ${esc(ORG_NOM[d.org])}, saisie dans un délai de <b>2 mois</b> après la notification de la décision (article R. 142-1 du code de la sécurité sociale).${fin?` Date limite indicative : <b>${esc(frLong(fin))}</b>.`:''}${fin&&today>fin?' <b>Attention : ce délai semble dépassé.</b>':''}</p>`;
+  else if(d.org==='ft')h+=`<p><b>France Travail :</b> adressez votre réclamation ou votre recours à votre agence ou au directeur de l’agence ; respectez le délai indiqué sur la décision (souvent 2 mois).</p>`;
+  else h+=`<p>Respectez le délai et l’adresse de recours indiqués sur la décision (souvent 2 mois).</p>`;
+  if(d.org==='caf')h+=`<p>Pour le <b>RSA</b>, le recours s’adresse en principe au <b>président du conseil départemental</b> : vérifiez l’adresse indiquée sur la décision.</p>`;
+  if(d.org==='cpam')h+=`<p>Pour une contestation <b>médicale</b> (arrêt de travail, invalidité, taux d’incapacité…), une procédure spéciale s’applique : suivez les indications de la décision.</p>`;
+ }else h+=`<p>Vous ne contestez pas la dette mais demandez ${d.rdem==='remise'?'à ne pas la rembourser, en tout ou partie, en raison de votre situation (<b>remise de dette</b>)':'à la rembourser par petites mensualités (<b>échelonnement</b>)'}. Joignez les justificatifs de vos ressources et de vos charges.</p>`;
+ h+=`<p>Sans réponse dans un délai de 2 mois, la demande est en général considérée comme rejetée. Vous pouvez aussi saisir le <b>médiateur</b> de l’organisme, puis le tribunal (pôle social du tribunal judiciaire pour la sécurité sociale).</p>`;
+ return `<div class="note">${h}</div>`;
+}
+function recoursParas(){
+ const L=[],org=ORG_NOM[d.org]||'votre organisme',idl=ORG_ID[d.org]||'N° de dossier',ident=clean1(d.ident);
+ const ref=`${ident?`${idl} : ${ident}. `:''}`;
+ const dec=`votre décision${d.notif?` notifiée le ${fr(d.notif)}`:''}${clean1(d.objet)?`, relative à ${clean1(d.objet)}`:''}${clean1(d.montant)?` (montant en cause : ${eur(num(d.montant))})`:''}`;
+ if(ref)L.push(ref.trim());
+ if(d.rdem==='contest'){
+  L.push(hasCRA()?`Par la présente, je conteste ${dec}, et vous demande de soumettre ma réclamation à la commission de recours amiable, conformément à l’article R. 142-1 du code de la sécurité sociale.`
+   :`Par la présente, je forme un recours contre ${dec}.`);
+  L.push(clean1(d.motifs)?clean1(d.motifs).replace(/\.?$/,'.'):'…');
+  L.push(`Je vous demande en conséquence de réexaminer ma situation et d’annuler ou de modifier cette décision.${clean1(d.montant)&&d.objtype==='indu'?' Dans l’attente, je vous demande de suspendre le recouvrement de la somme réclamée.':''}`);
+ }else{
+  L.push(`Par la présente, je sollicite ${d.rdem==='remise'?'une remise totale ou partielle':'un échelonnement du remboursement'} de la dette qui m’est réclamée suite à ${dec}.`);
+  L.push(`Je ne conteste pas le principe de cette somme, mais ma situation financière ne me permet pas de la rembourser${d.rdem==='echelon'?' en une seule fois':''}. ${clean1(d.situation)?clean1(d.situation).replace(/\.?$/,'.'):''}`.trim());
+  const fin=[clean1(d.ressources)&&`ressources mensuelles du foyer : ${eur(num(d.ressources))}`,clean1(d.charges)&&`charges mensuelles : ${eur(num(d.charges))}`,clean1(d.foyer)&&`composition du foyer : ${clean1(d.foyer)}`].filter(Boolean);
+  if(fin.length)L.push(`Pour information : ${fin.join(' ; ')}.`);
+  if(d.rdem==='echelon')L.push(`Je propose de rembourser cette somme par mensualités de ${clean1(d.mensualite)?eur(num(d.mensualite)):'…'}.`);
+  if(clean1(d.motifs))L.push(clean1(d.motifs).replace(/\.?$/,'.'));
+  L.push(`Je vous remercie de l’attention que vous porterez à ma demande.`);
+ }
+ L.push(`Vous trouverez ci-joint la copie de la décision et les justificatifs utiles.`);
+ return L;
+}
+const recoursObjet=()=>`${d.rdem==='remise'?'Demande de remise de dette':d.rdem==='echelon'?'Demande d’échelonnement de dette':hasCRA()?'Recours amiable devant la commission de recours amiable':'Recours contre une décision'}${clean1(d.ident)?' — '+(ORG_ID[d.org]||'dossier')+' '+clean1(d.ident):''}`;
+const RECOURS={
+ key:'attest_recours_v1',title:'Recours CAF, CPAM, France Travail',sub:'Contester une décision ou un trop-perçu',
+ init:x=>{if(!x.le)x.le=today;if(!x.org)x.org='caf';if(!x.rdem)x.rdem='contest'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez la <b>décision contestée</b> (ou la notification de trop-perçu) et vos <b>justificatifs</b>${d.rdem!=='contest'?' : derniers bulletins de salaire ou attestations de ressources, quittance de loyer, factures, relevés…':''}. Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter un justificatif':'Photographier la décision',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> À contester une décision de la CAF, de la CPAM, de la MSA ou de France Travail (aide refusée ou suspendue, trop-perçu réclamé, remboursement refusé…), ou à demander une remise ou un échelonnement de dette.</p></div>
+ <div class="note warn"><ul>
+  <li>Lisez bien la décision : elle indique <b>le délai et l’adresse du recours</b> (souvent la commission de recours amiable, dans les 2 mois).</li>
+  <li>Le recours peut souvent aussi se faire depuis votre espace en ligne (rubrique « réclamation » ou « contester ») : vous pouvez y joindre ce PDF.</li>
+  <li>Restez factuel, joignez les preuves, gardez une copie et la preuve d’envoi.</li></ul></div>`,fields:[]},
+  {t:'L’organisme et votre demande',fields:[
+   {k:'org',l:'Organisme',ty:'radio',o:ORGS},
+   {k:'orgautre',l:'Lequel ?',ty:'text',if:x=>x.org==='autre',sub:1},
+   {k:'rdem',l:'Vous voulez…',ty:'radio',o:RDEM}],post:()=>`<div id="rinfo2">${recoursInfo()}</div>`},
+  {t:'La décision',fields:[
+   {k:'ident',l:'Votre identifiant',ty:'text',h:'N° d’allocataire, de sécurité sociale ou identifiant France Travail.'},
+   {k:'notif',l:'Date de la décision ou du courrier',ty:'date'},
+   {k:'objtype',l:'De quoi s’agit-il ?',ty:'radio',o:[['indu','Un trop-perçu (indu) réclamé'],['refus','Une aide refusée, réduite ou suspendue'],['autre','Autre décision']]},
+   {k:'objet',l:'Précisez',ty:'text',h:'Ex. : « l’aide personnalisée au logement de janvier à juin 2026 », « le remboursement de mes soins dentaires ».'},
+   {k:'montant',l:'Montant en cause (€)',ty:'text',h:'Facultatif.'}],
+   post:()=>`<div id="rinfo">${recoursInfo()}</div>`,live:['notif'],liveFn:()=>{const c=$('#rinfo');if(c)c.innerHTML=recoursInfo()}},
+  {t:'Vos arguments et votre situation',fields:[
+   {k:'motifs',l:'Vos arguments',ty:'area',big:1,h:'Pourquoi la décision est erronée (erreur sur vos ressources, sur votre situation, justificatif déjà envoyé…), ou toute précision utile pour une remise de dette.'},
+   {k:'situation',l:'Votre situation',ty:'area',h:'Ex. : perte d’emploi, séparation, maladie, enfants à charge.',if:x=>x.rdem!=='contest'},
+   {row:[{k:'ressources',l:'Ressources du foyer (€/mois)',ty:'text'},{k:'charges',l:'Charges (€/mois)',ty:'text'}],if:x=>x.rdem!=='contest'},
+   {k:'foyer',l:'Composition du foyer',ty:'text',h:'Ex. : 1 adulte et 2 enfants.',if:x=>x.rdem!=='contest'},
+   {k:'mensualite',l:'Mensualité que vous proposez (€)',ty:'text',if:x=>x.rdem==='echelon'}]},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous',fields:SENDER()},
+  {t:'Le destinataire',pre:()=>`<div class="note"><p>Recopiez l’adresse indiquée sur la décision${hasCRA()&&d.rdem==='contest'?', en précisant « Commission de recours amiable »':''}.</p></div>`,fields:RECIP('de l’organisme','Ex. : « CAF des Bouches-du-Rhône — Commission de recours amiable ».')},
+  letterSigStep(),
+  {t:'Votre lettre',recap:1,fields:[]}
+ ],
+ recapSkip:['motifs','situation'],recapMore:()=>[],
+ recapBefore:()=>recoursInfo()+letterPreview(recoursObjet(),recoursParas()),
+ missing(){const m=letterMissing();if(!clean1(d.ident))m.unshift('votre identifiant');if(!d.notif)m.unshift('date de la décision');if(!clean1(d.motifs)&&d.rdem==='contest')m.unshift('vos arguments');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais complétez ces informations avant de l’envoyer.',
+ mailHint:'adresse indiquée sur la décision',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> par <b>lettre recommandée avec accusé de réception</b> à l’adresse indiquée sur la décision, ou par votre espace en ligne (rubrique réclamation), en joignant ce PDF. Gardez une copie et la preuve d’envoi.</p></div>`,
+ fname:()=>`${d.rdem==='contest'?'Recours':'Demande_remise'}_${(d.org||'organisme').toUpperCase()}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:recoursObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ${d.rdem==='contest'?'mon recours':'ma demande'}, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:recoursObjet(),paras:recoursParas(),pj:'Pièces jointes : copie de la décision et justificatifs.',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS,fraude:FRAUDE,honneur:HONNEUR,recours:RECOURS};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
