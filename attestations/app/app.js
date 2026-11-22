@@ -24,6 +24,7 @@ const CATALOG=[
  {id:'energie',t:'Réclamation facture d’énergie ou d’eau',s:'Électricité, gaz, eau : estimation, erreur de relevé…'},
  {id:'colis',t:'Colis perdu ou abîmé',s:'Réclamation au vendeur ou au transporteur'},
  {id:'procu',t:'Procuration',s:'Autoriser un proche à retirer un colis, un document…'},
+ {id:'fps',t:'Contester un forfait post-stationnement (FPS)',s:'Recours à la mairie dans le mois : délai calculé, motifs, justificatifs'},
  {id:'ast',t:'Autorisation de sortie du territoire',s:'Cerfa 15646 — enfant qui voyage sans ses parents',soon:1}
 ];
 const ICON='<svg width="22" height="26" viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="none" stroke="currentColor" stroke-width="8"/><path d="M26 66l10 10 20-22" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1133,7 +1134,77 @@ const PROCU={
   sigs:[{key:'sig',label:'Le mandant (bon pour pouvoir)',name:pName('a_')},{key:'sigb',label:'Le mandataire (bon pour acceptation)',name:pName('b_')}],ph:myPh(),annexTitle:'Pièces jointes : pièces d’identité',docTitle:'Procuration'})}
 };
 
-const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU};
+/* ================= Document 14 : contestation d'un forfait post-stationnement (RAPO) ================= */
+const FMOT=[['paye','J’avais payé le stationnement'],['handicap','Carte de stationnement pour personnes handicapées'],['vendu','Véhicule vendu avant la date'],['vole','Véhicule volé'],['usurpation','Usurpation de plaques (ce n’était pas mon véhicule)'],['erreur','Erreur sur le véhicule ou le lieu'],['montant','Montant erroné ou paiement non déduit'],['autre','Autre motif']];
+const FDATE={paye:'Date et heure de fin du paiement',vendu:'Date de la cession',vole:'Date du vol',usurpation:'Date de la plainte'};
+const FJUST={paye:'le ticket ou la preuve de paiement (capture de l’appli de stationnement)',handicap:'la copie recto-verso de la carte (CMI stationnement ou carte européenne)',vendu:'le certificat de cession et l’accusé d’enregistrement de la déclaration de cession',vole:'le récépissé de déclaration de vol',usurpation:'le récépissé de plainte et une photo de votre véhicule',erreur:'la copie de votre certificat d’immatriculation (carte grise)',montant:'la preuve du paiement partiel',autre:'tout justificatif utile'};
+function fpsFin(){const n=d.notif;if(!n)return null;let e=isoD(addMonths(n,1));while(e.getUTCDay()===0||e.getUTCDay()===6||ferie(e))e=new Date(e.getTime()+864e5);return isoS(e)}
+function fpsInfo(){
+ if(d.majore==='oui')return `<div class="note warn"><p><b>FPS majoré :</b> le recours préalable à la commune n’est plus possible. Vous pouvez saisir directement le <b>tribunal du stationnement payant</b> (<a href="https://tribunal-stationnement-payant.fr/" target="_blank" rel="noopener">tribunal-stationnement-payant.fr</a>), en ligne ou par courrier, avec le formulaire Cerfa prévu.</p></div>`;
+ const fin=fpsFin();if(!fin)return `<div class="note"><p>Indiquez la date à laquelle vous avez reçu l’avis de paiement : l’appli calcule la date limite du recours.</p></div>`;
+ const late=today>fin;
+ return late?`<div class="note warn"><p><b>Attention : le délai d’un mois semble dépassé</b> (il se terminait le ${esc(frLong(fin))}). Le recours risque d’être rejeté comme tardif.</p></div>`
+  :`<div class="note"><p><b>Date limite pour envoyer le recours : ${esc(frLong(fin))}</b> (1 mois après la réception de l’avis ; date indicative, reportée si elle tombe un week-end ou un jour férié).</p></div>`;
+}
+function fpsParas(){
+ const L=[],m=d.motif,md=d.mdate?fr(d.mdate):'…',det=clean1(d.details);
+ L.push(`En qualité de titulaire du certificat d’immatriculation du véhicule immatriculé ${clean1(d.immat).toUpperCase()||'…'}, je forme par la présente un recours administratif préalable obligatoire, en application de l’article L. 2333-87 du code général des collectivités territoriales, contre l’avis de paiement du forfait post-stationnement n° ${clean1(d.fpsno)||'…'}, établi le ${fr(d.fpsdate)||'…'}${clean1(d.heure)?' à '+clean1(d.heure):''}${clean1(d.lieu)?', '+clean1(d.lieu):''}${clean1(d.commune)?' ('+clean1(d.commune)+')':''}, d’un montant de ${clean1(d.montant)?eur(num(d.montant)):'…'}.`);
+ if(m==='paye')L.push(`Le stationnement avait bien été payé, jusqu’au ${md}${det?' ('+det+')':''}. Je joins la preuve de ce paiement.`);
+ else if(m==='handicap')L.push(`Je suis titulaire d’une carte mobilité inclusion portant la mention « stationnement pour personnes handicapées » (ou d’une carte européenne de stationnement), qui était apposée dans le véhicule. Cette carte permet de stationner gratuitement sur les places payantes de la voirie (article L. 241-3 du code de l’action sociale et des familles), dans les limites éventuellement fixées par la commune.${det?' '+det+'.':''} Je joins la copie de la carte.`);
+ else if(m==='vendu')L.push(`Ce véhicule avait été cédé le ${md}${det?' à '+det:''}, soit avant la date du stationnement en cause, comme l’attestent le certificat de cession et la déclaration de cession enregistrée, joints à la présente.`);
+ else if(m==='vole')L.push(`Ce véhicule avait été volé le ${md}, vol déclaré auprès des services de police ou de gendarmerie${det?' ('+det+')':''}. Je joins le récépissé de déclaration de vol.`);
+ else if(m==='usurpation')L.push(`Mon véhicule ne se trouvait pas à cet endroit à cette date : il s’agit vraisemblablement d’une usurpation de plaques d’immatriculation, pour laquelle j’ai porté plainte le ${md}${det?' ('+det+')':''}. Je joins le récépissé de plainte.`);
+ else if(m==='erreur')L.push(`L’avis de paiement comporte une erreur${det?' : '+det:''}. Le véhicule désigné ne correspond pas au mien, comme le montre la copie de mon certificat d’immatriculation jointe.`);
+ else if(m==='montant')L.push(`Le montant réclamé est erroné${det?' : '+det:''}. Le montant du forfait doit être diminué de la somme déjà payée pour cette période de stationnement.`);
+ else L.push(det?det+'.':'…');
+ L.push(m==='montant'?`Je vous demande en conséquence de rectifier cet avis de paiement${d.dejapaye==='oui'?' et de me rembourser la somme indûment versée':''}.`:`Je vous demande en conséquence d’annuler cet avis de paiement${d.dejapaye==='oui'?' et de me rembourser la somme versée':''}.`);
+ L.push(`Vous trouverez ci-joint la copie de l’avis de paiement, de mon certificat d’immatriculation et des justificatifs. À défaut d’annulation, je me réserve la possibilité de saisir le tribunal du stationnement payant.`);
+ return L;
+}
+const fpsObjet=()=>`Recours administratif préalable obligatoire — forfait post-stationnement n° ${clean1(d.fpsno)||'…'}`;
+const FPS={
+ key:'attest_fps_v1',title:'Contester un FPS',sub:'Recours préalable obligatoire (RAPO)',
+ init:x=>{if(!x.le)x.le=today;if(!x.majore)x.majore='non';if(!x.dejapaye)x.dejapaye='non'},
+ maxPh:4,phLabels:[],phIntro:()=>`<p>Joignez la <b>copie de l’avis de paiement</b>, de votre <b>certificat d’immatriculation</b> (carte grise) et ${FJUST[d.motif]?'<b>'+esc(FJUST[d.motif])+'</b>':'vos justificatifs'}. Les photos sont ajoutées à la fin du PDF (4 au maximum).</p>`,
+ phBtn:n=>n?'Ajouter un justificatif':'Photographier l’avis de paiement',
+ steps:[
+  {t:'Avant de commencer',pre:()=>`<div class="note"><p><b>À quoi sert cette lettre ?</b> Depuis 2018, un stationnement payant non payé donne lieu à un <b>forfait post-stationnement (FPS)</b>, fixé par la commune. Pour le contester, il faut d’abord adresser un <b>recours administratif préalable obligatoire (RAPO)</b> à la commune ou à la société indiquée sur l’avis, dans un délai d’<b>un mois</b>.</p></div>
+ <div class="note warn"><ul>
+  <li><b>Ce n’est pas une amende :</b> pour une contravention (stationnement gênant, très gênant, dangereux ou abusif, excès de vitesse…), la contestation se fait auprès de l’officier du ministère public, en ligne sur le site officiel de l’ANTAI (antai.gouv.fr). Cette lettre ne sert pas pour ces cas.</li>
+  <li>Envoyez le recours par <b>lettre recommandée avec accusé de réception</b>, ou par le service en ligne indiqué sur l’avis (vous pouvez y joindre ce PDF). Il doit en principe être fait par le titulaire de la carte grise.</li>
+  <li>Sans réponse dans un délai d’un mois, le recours est considéré comme rejeté. Vous pouvez alors saisir le <b>tribunal du stationnement payant</b> dans le mois suivant ; il faut en principe avoir payé le FPS au préalable (sauf vol, cession ou usurpation de plaques).</li></ul></div>`,fields:[]},
+  {t:'L’avis de paiement',fields:[
+   {k:'majore',l:'Avez-vous reçu un FPS majoré (« avis de FPS majoré ») ?',ty:'radio',o:YN},
+   {row:[{k:'fpsno',l:'N° de l’avis de paiement',ty:'text'},{k:'montant',l:'Montant (€)',ty:'text'}]},
+   {row:[{k:'fpsdate',l:'Date du stationnement',ty:'date'},{k:'heure',l:'Heure',ty:'text',h:'Facultatif'}]},
+   {row:[{k:'lieu',l:'Lieu (rue)',ty:'text'},{k:'commune',l:'Commune',ty:'text'}]},
+   {k:'immat',l:'Immatriculation du véhicule',ty:'text',h:'Exemple : AB-123-CD'},
+   {k:'notif',l:'Date de réception de l’avis',ty:'date',h:'Date de réception du courrier de l’ANTAI, ou date de l’avis laissé sur le pare-brise.'},
+   {k:'dejapaye',l:'Avez-vous déjà payé ce FPS ?',ty:'radio',o:YN}],
+   post:()=>`<div id="finfo">${fpsInfo()}</div>`,live:['notif'],liveFn:()=>{const c=$('#finfo');if(c)c.innerHTML=fpsInfo()}},
+  {t:'Pourquoi le contester ?',fields:[
+   {k:'motif',l:'Motif',ty:'radio',o:FMOT},
+   {k:'mdate',l:'Date',ty:'date',if:x=>!!FDATE[x.motif],h:''},
+   {k:'details',l:'Précisions',ty:'area',h:'Exemple : « ticket n° 4521 payé par l’appli PayByPhone de 14 h à 16 h », « véhicule vendu à M. Durand ».'}],
+   pre:()=>d.motif&&FDATE[d.motif]?`<div class="note"><p>Date demandée : <b>${esc(FDATE[d.motif].toLowerCase())}</b>. Justificatif à joindre : ${esc(FJUST[d.motif])}.</p></div>`:d.motif?`<div class="note"><p>Justificatif à joindre : ${esc(FJUST[d.motif])}.</p></div>`:''},
+  {t:'Justificatifs',photos:1,pre:()=>photosHTML(),recapRows:()=>[['Justificatifs',phCount()]],fields:[]},
+  {t:'Vous (titulaire de la carte grise)',fields:SENDER()},
+  {t:'Le destinataire',pre:()=>`<div class="note"><p>Recopiez l’adresse « pour contester » indiquée sur l’avis de paiement : c’est la commune ou la société chargée du stationnement, <b>pas l’ANTAI</b>.</p></div>`,fields:RECIP('de la commune ou de la société indiquée sur l’avis','Exemple : « Ville de Marseille — Service des RAPO ».')},
+  letterSigStep(),
+  {t:'Votre recours',recap:1,fields:[]}
+ ],
+ recapSkip:['details'],recapMore:()=>[],
+ recapBefore:()=>fpsInfo()+(d.majore==='oui'?'':letterPreview(fpsObjet(),fpsParas())),
+ missing(){const m=letterMissing();if(!clean1(d.fpsno))m.unshift('n° de l’avis');if(!clean1(d.immat))m.unshift('immatriculation');if(!d.motif)m.unshift('motif');if(!myPh().length)m.push('justificatifs');return m},
+ missWarn:'Vous pouvez quand même produire le PDF, mais un recours incomplet risque d’être rejeté.',
+ mailHint:'adresse indiquée sur l’avis (si envoi par mail accepté)',
+ recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour l’envoyer :</b> par <b>lettre recommandée avec accusé de réception</b> à l’adresse indiquée sur l’avis, ou par le service en ligne de la commune (joignez-y ce PDF), avant la date limite. Gardez la preuve d’envoi.</p></div>`,
+ fname:()=>`Recours_FPS_${fnPart(d.fpsno)||'avis'}_${d.le||today}.pdf`,
+ mail(){return {to:clean1(d.mailto),subj:fpsObjet(),body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint mon recours administratif préalable obligatoire contre le forfait post-stationnement n° ${clean1(d.fpsno)||'…'}, avec les justificatifs.\n\n${fullName()}`}},
+ build(){return letterPDF({objet:fpsObjet(),paras:fpsParas(),pj:'Pièces jointes : copie de l’avis de paiement, du certificat d’immatriculation et des justificatifs.',ph:myPh(),annexTitle:'Pièces jointes'})}
+};
+
+const DOCS={temoin:TEMOIN,demeure:DEMEURE,dette:DETTE,heberg:HEBERG,animal:ANIMAL,retract:RETRACT,resil:RESIL,vol:VOL,preavis:PREAVIS,travaux:TRAVAUX,energie:ENERGIE,colis:COLIS,procu:PROCU,fps:FPS};
 async function finish(doc){doc.setAuthor('');doc.setCreator('Attestations faciles - Vitfix');doc.setProducer('Attestations faciles - Vitfix');return await doc.save()}
 
 /* ================= Photos (pièce d'identité du témoin) ================= */
