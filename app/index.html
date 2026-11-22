@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b5fa5">
-<title>Constat dégâts des eaux</title>
+<title>Constat amiable dégât des eaux en ligne gratuit — Vitfix</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <style>
 /* VOICE: calme, net, rassurant — un formulaire officiel qu'on remplit sans stress
@@ -98,7 +98,8 @@ textarea.big{min-height:170px}
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Constat DDE">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Remplissez, signez et envoyez votre constat amiable dégât des eaux (IRSI) depuis votre téléphone.">
+<meta name="description" content="Remplissez gratuitement votre constat amiable dégât des eaux et votre déclaration de sinistre en ligne : signature au doigt, photos, PDF envoyé à l’assureur. Sans inscription.">
+<link rel="canonical" href="https://hugocarvalho86.github.io/constat-degats-des-eaux/app/">
 </head>
 <body>
 <header>
@@ -125,7 +126,7 @@ const CAP=window.Capacitor,NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlat
 const PARTNER={nom:'Vitfix',mail:'vitfix.applis@gmail.com'};
 /* Deux documents dans la même appli : constat amiable (mode « constat ») et déclaration de sinistre à l'assureur (mode « decl ») */
 const MODEKEY='cdde_mode';
-let mode='constat';try{if(localStorage.getItem(MODEKEY)==='decl')mode='decl'}catch(e){}
+let mode='constat';try{if(localStorage.getItem(MODEKEY)==='decl')mode='decl';const q=new URLSearchParams(location.search).get('mode');if(q==='decl'||q==='constat')mode=q}catch(e){}
 let KEY='constatDDE_v1';
 let d={};
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}};

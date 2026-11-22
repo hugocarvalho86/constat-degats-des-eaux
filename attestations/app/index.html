@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Attestation de témoin et mise en demeure en ligne — Attestations faciles</title>
+<link href="fonts/fonts.css" rel="stylesheet">
+<style>
+/* VOICE: posé, précis, sans jargon — on aide quelqu'un à remplir un papier qui compte
+   IDEA: la feuille Cerfa, ses lignes et sa mention manuscrite, mais guidée question par question
+   COLOUR and TYPE: vert d'eau #0f766e (pas de bleu-blanc-rouge : appli indépendante de l'État), Archivo + Inter
+   LAYOUT: une colonne de 640px, barre d'actions collée en bas pour le pouce */
+:root{color-scheme:light dark;--bg:light-dark(#f3f8f7,#09171a);--card:light-dark(#fff,#10242a);--ink:light-dark(#0c1f22,#e4f1ef);--mute:light-dark(#566c6c,#93acaa);--line:light-dark(#d3e2e0,#22393d);--main:#0f766e;--main2:light-dark(#e1f2ef,#123433);--warn:light-dark(#fff4dc,#3a2f14);--link:light-dark(#0f766e,#6fd3c6)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+header{background:var(--main);color:#fff;padding:calc(16px + env(safe-area-inset-top)) max(5vw,16px,env(safe-area-inset-right)) 20px max(5vw,16px,env(safe-area-inset-left));position:relative;overflow:hidden}
+header h1{font:800 clamp(22px,5vw,30px)/1.05 Archivo,sans-serif;margin:0 0 4px;text-wrap:balance}
+header p{margin:0;opacity:.88;font-size:14px}
+header svg{position:absolute;right:-8px;top:-4px;width:110px;opacity:.16}
+.home-btn{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:999px;font:600 14px Inter;padding:8px 14px;min-height:40px;margin:0 0 10px;cursor:pointer}
+.prog{height:6px;background:rgba(255,255,255,.25);border-radius:6px;margin-top:14px;overflow:hidden}
+.prog i{display:block;height:100%;background:#fff;border-radius:6px;transition:width .3s}
+main{max-width:640px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) calc(120px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 18px}
+.kicker{font-size:13px;color:var(--mute);margin:0 0 2px}
+h2{font:700 22px/1.15 Archivo,sans-serif;margin:0 0 16px}
+.f{margin:0 0 16px}
+.f>label,.f>.lab{display:block;font-weight:600;font-size:15px;margin-bottom:6px}
+.f small{display:block;color:var(--mute);font-size:13px;margin-top:4px}
+input[type=text],input[type=email],input[type=tel],input[type=date],textarea{width:100%;font:16px Inter,sans-serif;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:48px}
+textarea{min-height:84px;resize:vertical}
+textarea.big{min-height:260px}
+input:focus,textarea:focus,button:focus-visible{outline:3px solid #5fd0c2;outline-offset:1px;border-color:var(--main)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{position:relative}
+.opt input{position:absolute;opacity:0;inset:0}
+.opt span{display:flex;align-items:center;gap:8px;min-height:44px;padding:9px 14px;border:1.5px solid var(--line);border-radius:999px;background:var(--bg);font-size:15px;cursor:pointer}
+.opt input:checked+span{background:var(--main);border-color:var(--main);color:#fff}
+.opt input:focus-visible+span{outline:3px solid #5fd0c2}
+.sub{margin:10px 0 4px 14px;padding-left:12px;border-left:3px solid var(--main2)}
+.note{padding:12px 14px;border-radius:12px;background:var(--main2);font-size:14px;margin:0 0 14px}
+.note.warn{background:var(--warn)}
+.note p{margin:0 0 6px}.note p:last-child{margin:0}
+.note ul{margin:4px 0 0;padding-left:20px}
+.sig{border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;width:100%;height:170px;display:block}
+.pad{border:1.5px dashed var(--line);border-radius:12px;touch-action:none;width:100%;height:110px;display:block;background:#fff repeating-linear-gradient(to bottom,transparent 0 74px,#c9d9d6 74px 76px,transparent 76px 110px)}
+.copy{font:600 15px/1.35 Inter;margin:0 0 6px;padding:8px 10px;border-radius:8px;background:var(--main2)}
+.sigbar{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}
+.link{background:none;border:0;color:var(--link);font:600 14px Inter;padding:8px;min-height:40px;cursor:pointer}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:center}
+nav .in{max-width:640px;width:100%;display:flex;gap:10px}
+nav[hidden]{display:none}
+.btn{flex:1;min-height:52px;border-radius:12px;font:700 16px Archivo,sans-serif;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;padding:0 12px}
+.btn.pri{background:var(--main);border-color:var(--main);color:#fff}
+.btn:disabled{opacity:.5}
+.recap{display:grid;gap:10px}
+.recap section{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.recap h3{font:700 15px Archivo,sans-serif;margin:0 0 6px;display:flex;justify-content:space-between;align-items:center}
+.recap dl{margin:0;font-size:14px}
+.recap dt{color:var(--mute);font-size:13px;margin-top:6px}.recap dd{margin:0;overflow-wrap:anywhere;font-weight:500;white-space:pre-wrap}
+.miss{color:light-dark(#a1350f,#ffb38a);font-weight:600}
+.actions{display:grid;gap:10px;margin-top:16px}
+.msg{padding:12px 14px;border-radius:10px;background:var(--main2);font-size:14px;margin-top:12px}
+.msg.err{background:light-dark(#fde3e3,#3d1d1f)}
+.mailbox{font-size:14px;color:var(--mute);margin-top:6px;overflow-wrap:anywhere}
+.steps{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 14px}
+.steps button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--mute);font:600 12px Inter;cursor:pointer;padding:0}
+.steps button.on{background:var(--main);color:#fff;border-color:var(--main)}
+.steps button.done{color:var(--ink);background:var(--main2)}
+.docs{display:grid;gap:12px}
+.doc{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;text-align:left;width:100%;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;color:var(--ink);font:inherit;cursor:pointer}
+.doc b{display:block;font:700 17px/1.2 Archivo,sans-serif}
+.doc span{display:block;font-size:13px;color:var(--mute);margin-top:3px}
+.doc i{font-style:normal;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;background:var(--main2);color:var(--link);white-space:nowrap}
+.doc[disabled]{cursor:default;opacity:.62}
+.doc .ico{width:42px;height:42px;border-radius:12px;background:var(--main2);display:grid;place-items:center}
+.indep{font-size:12.5px;color:var(--mute);margin:18px 2px 0;line-height:1.45}
+.phgrid{display:grid;gap:12px;margin-bottom:14px}
+.ph{margin:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.ph img{display:block;width:100%;max-height:240px;object-fit:contain;background:#000}
+.ph figcaption{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;font-size:14px}
+.phadd{display:grid;gap:10px}
+.phbtn{display:flex;align-items:center;justify-content:center;text-align:center}
+.count{font-size:13px;color:var(--mute);margin-top:4px}
+@media(prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+<meta name="description" content="Remplissez gratuitement l’attestation de témoin (Cerfa 11527*03) ou une lettre de mise en demeure sur votre téléphone : signature au doigt, PDF prêt à envoyer.">
+<link rel="canonical" href="https://hugocarvalho86.github.io/constat-degats-des-eaux/attestations/app/">
+<link rel="icon" type="image/png" href="icon-192.png"><link rel="apple-touch-icon" href="apple-touch-icon.png">
+</head>
+<body>
+<header>
+  <svg viewBox="0 0 100 120" aria-hidden="true"><path d="M14 4h52l22 22v86a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V8a4 4 0 0 1 4-4z" fill="#fff"/></svg>
+  <button class="home-btn" id="home" type="button" hidden>‹ Documents</button>
+  <h1 id="title">Attestations faciles</h1>
+  <p id="sub">Vos documents remplis pas à pas, signés et envoyés en PDF</p>
+  <div class="prog" id="progw" hidden><i id="bar"></i></div>
+</header>
+<main>
+  <div class="steps" id="dots"></div>
+  <div id="view"></div>
+</main>
+<nav id="nav" hidden><div class="in">
+  <button class="btn" id="prev" type="button">Précédent</button>
+  <button class="btn pri" id="next" type="button">Suivant</button>
+</div></nav>
+
+<script src="pdf-lib.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
