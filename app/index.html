@@ -3,25 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#0b5fa5">
+<meta name="theme-color" content="#0d0d0d">
 <title>Remplir mon constat ou ma déclaration de sinistre — Vitfix</title>
 <link href="fonts/fonts.css" rel="stylesheet">
 <style>
 /* VOICE: calme, net, rassurant — un formulaire officiel qu'on remplit sans stress
    IDEA: le constat papier IRSI, recto bleu ciel / rose des parties A et B
    PICTURE: le questionnaire lui-même, une question à la fois, barre de progression en goutte
-   COLOUR and TYPE: bleu eau #0b5fa5 dominant, rose A #f6d3d3 / bleu B #d6ecf8, Archivo + Inter
+   COLOUR and TYPE: palette vitfix.io — jaune #ffd600, noir #0d0d0d, crème #fffbe6 ; rose A / bleu B ; Archivo + Inter
    LAYOUT: une colonne de 640px, barre d'actions collée en bas pour le pouce */
-:root{color-scheme:light dark;--bg:light-dark(#f4f8fb,#0a1620);--card:light-dark(#fff,#112230);--ink:light-dark(#0d1b26,#e7f0f6);--mute:light-dark(#5a6d7b,#93a8b7);--line:light-dark(#d5e1ea,#24394a);--blue:#0b5fa5;--blue2:light-dark(#e3f0fa,#13324b);--a:light-dark(#fbe3e3,#3a1f24);--aink:#c0343a;--b:light-dark(#dcf0fb,#13324b);--bink:#0b74b8}
+:root{color-scheme:light dark;--bg:light-dark(#f7f7f5,#0d0d0d);--card:light-dark(#fff,#1a1a1a);--ink:light-dark(#0d0d0d,#f2f2ee);--mute:light-dark(#555,#a8a8a2);--line:light-dark(#e8e8e4,#33332e);--blue:#ffd600;--on:#0d0d0d;--blue2:light-dark(#fffbe6,#2b2710);--ybord:light-dark(#ffe566,#5c5214);--a:light-dark(#fdecea,#3a1f24);--aink:#c0392b;--b:light-dark(#e3f2fd,#13324b);--bink:#1565c0}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
-header{background:var(--blue);color:#fff;padding:calc(18px + env(safe-area-inset-top)) max(5vw,16px,env(safe-area-inset-right)) 22px max(5vw,16px,env(safe-area-inset-left));position:relative;overflow:hidden}
+header{background:#0d0d0d;color:#fff;padding:calc(18px + env(safe-area-inset-top)) max(5vw,16px,env(safe-area-inset-right)) 22px max(5vw,16px,env(safe-area-inset-left));position:relative;overflow:hidden}
 header h1{font:800 clamp(22px,5vw,30px)/1.05 Archivo,sans-serif;margin:0 0 4px;text-wrap:balance}
 header p{margin:0;opacity:.85;font-size:14px}
-header svg{position:absolute;right:-10px;top:-6px;width:120px;opacity:.18}
-.prog{height:6px;background:rgba(255,255,255,.25);border-radius:6px;margin-top:14px;overflow:hidden}
-.prog i{display:block;height:100%;background:#fff;border-radius:6px;transition:width .3s}
+header{padding-right:max(76px,5vw);border-bottom:4px solid var(--blue)}
+header svg{position:absolute;right:18px;top:calc(18px + env(safe-area-inset-top));width:42px}
+.prog{height:6px;background:rgba(255,255,255,.2);border-radius:6px;margin-top:14px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--blue);border-radius:6px;transition:width .3s}
 main{max-width:640px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) calc(120px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
 .step{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 18px}
 .step.A{border-top:6px solid var(--aink)}.step.B{border-top:6px solid var(--bink)}
@@ -34,24 +35,25 @@ h2{font:700 22px/1.15 Archivo,sans-serif;margin:0 0 16px}
 .f small{display:block;color:var(--mute);font-size:13px;margin-top:4px}
 input[type=text],input[type=email],input[type=tel],input[type=date],textarea{width:100%;font:16px Inter,sans-serif;padding:12px 13px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:48px}
 textarea{min-height:84px;resize:vertical}
-input:focus,textarea:focus,button:focus-visible{outline:3px solid #5fb0ec;outline-offset:1px;border-color:var(--blue)}
-.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+input:focus,textarea:focus,select:focus,button:focus-visible{outline:3px solid var(--blue);outline-offset:1px;border-color:var(--ink)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 12px}
+/* Champs côte à côte : libellés, cases et aides alignés ligne par ligne */
+.row>.f{display:grid;grid-template-rows:subgrid;grid-row:span 3;align-content:start}.row>.f>label{align-self:end}
 .opts{display:flex;flex-wrap:wrap;gap:8px}
 .opt{position:relative}
 .opt input{position:absolute;opacity:0;inset:0}
 .opt span{display:flex;align-items:center;gap:8px;min-height:44px;padding:9px 14px;border:1.5px solid var(--line);border-radius:999px;background:var(--bg);font-size:15px;cursor:pointer}
-.opt input:checked+span{background:var(--blue);border-color:var(--blue);color:#fff}
-.opt input:focus-visible+span{outline:3px solid #5fb0ec}
+.opt input:checked+span{background:var(--blue);border-color:var(--blue);color:var(--on)}
+.opt input:focus-visible+span{outline:3px solid var(--ink)}
 .sub{margin:10px 0 4px 14px;padding-left:12px;border-left:3px solid var(--blue2)}
 .quick{font:600 14px Inter;background:var(--blue2);color:var(--ink);border:0;border-radius:999px;padding:10px 14px;min-height:44px;margin-bottom:14px;cursor:pointer}
 .sig{border:1.5px dashed var(--line);border-radius:12px;background:#fff;touch-action:none;width:100%;height:170px;display:block}
 .sigbar{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:13px;color:var(--mute)}
-.link{background:none;border:0;color:var(--blue);font:600 14px Inter;padding:8px;min-height:40px;cursor:pointer}
-:root[data-theme=dark] .link,.link{color:light-dark(#0b5fa5,#7cc4f5)}
+.link{background:none;border:0;color:var(--ink);text-decoration:underline;text-decoration-color:var(--blue);text-decoration-thickness:3px;text-underline-offset:3px;font:600 14px Inter;padding:8px;min-height:40px;cursor:pointer}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center}
 nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .btn{flex:1;min-height:52px;border-radius:12px;font:700 16px Archivo,sans-serif;border:1.5px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
-.btn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.pri{background:var(--blue);border-color:var(--blue);color:var(--on)}
 .btn:disabled{opacity:.5}
 .recap{display:grid;gap:10px}
 .recap section{border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -64,7 +66,7 @@ nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .mailbox{font-size:14px;color:var(--mute);margin-top:6px;overflow-wrap:anywhere}
 .steps{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 14px}
 .steps button{width:30px;height:30px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--mute);font:600 12px Inter;cursor:pointer;padding:0}
-.steps button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.steps button.on{background:var(--blue);color:var(--on);border-color:var(--blue)}
 .steps button.done{color:var(--ink);background:var(--blue2)}
 .devis{margin-top:18px;padding:16px;border-radius:14px;background:var(--blue2);display:grid;gap:10px}
 .devis h3{font:700 17px/1.25 Archivo,sans-serif;margin:0}
@@ -78,8 +80,8 @@ nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .phbtn{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 12px}
 .modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin:0 0 14px}
 .modes button{min-height:46px;border:0;border-radius:10px;background:none;font:600 13px/1.2 Inter,sans-serif;color:var(--mute);cursor:pointer;padding:6px 8px}
-.modes button.on{background:var(--blue);color:#fff}
-.note{padding:12px 14px;border-radius:12px;background:var(--blue2);font-size:14px;margin:0 0 16px}
+.modes button.on{background:var(--blue);color:var(--on)}
+.note{padding:12px 14px;border-radius:12px;background:var(--blue2);border:1px solid var(--ybord);font-size:14px;margin:0 0 16px}
 .note p{margin:0 0 8px}.note p:last-child{margin:0}
 select{width:100%;font:16px Inter,sans-serif;padding:11px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:48px}
 .items{display:grid;gap:12px;margin-bottom:12px}
@@ -89,6 +91,26 @@ select{width:100%;font:16px Inter,sans-serif;padding:11px 10px;border:1.5px soli
 .il{display:grid;gap:4px;font-size:13px;font-weight:600;color:var(--mute)}
 .total{font:700 17px Archivo,sans-serif;margin:4px 0 14px}
 textarea.big{min-height:170px}
+/* Accueil guidé : étapes principales puis « D'où vient l'eau ? » */
+[hidden]{display:none!important}
+.sec{margin-top:14px}
+.etapes{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:e}
+.etapes li{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-items:start;counter-increment:e}
+.etapes li::before{content:counter(e);display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--blue);color:var(--on);font:800 15px Archivo,sans-serif}
+.etapes b{display:block;font-weight:700;font-size:15px}
+.etapes span{font-size:14px;color:var(--mute)}
+.choix{display:grid;gap:10px}
+.choix button{display:grid;grid-template-columns:40px minmax(0,1fr) 14px;gap:12px;align-items:center;text-align:left;width:100%;min-height:72px;padding:12px 14px;border:1.5px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);cursor:pointer;font:inherit}
+.choix button:hover,.choix button:active{border-color:var(--blue);background:var(--blue2)}
+.choix .ic{width:40px;height:40px;border-radius:12px;background:var(--blue2);border:1px solid var(--ybord);display:grid;place-items:center;font-size:20px}
+.choix b{display:block;font:700 16px/1.2 Archivo,sans-serif}
+.choix small{display:block;font-size:13px;color:var(--mute);margin-top:2px}
+.choix .fl{font:800 20px Archivo,sans-serif}
+.qui{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin:0 0 16px}
+.qui div{border-radius:12px;padding:12px;font-size:14px}
+.qui .A{background:var(--a)}.qui .B{background:var(--b)}
+.qui b{display:block;font:700 15px Archivo,sans-serif;margin-bottom:2px}
+.tohome{margin:-6px 0 6px -8px}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -138,19 +160,51 @@ setTimeout(function(){if(tcf||ls(KG))return;var c=get();if(c===true)load();else 
 </head>
 <body>
 <header>
-  <svg viewBox="0 0 100 120" aria-hidden="true"><path d="M50 4C50 4 12 52 12 78a38 38 0 0076 0C88 52 50 4 50 4z" fill="#fff"/></svg>
+  <svg viewBox="0 0 100 120" aria-hidden="true"><path d="M50 4C50 4 12 52 12 78a38 38 0 0076 0C88 52 50 4 50 4z" fill="#ffd600"/></svg>
   <h1 id="ttl">Constat dégâts des eaux</h1>
   <p id="sub">Formulaire IRSI — 3 exemplaires (A, B, syndic) remplis automatiquement</p>
   <div class="prog"><i id="bar"></i></div>
 </header>
 <main>
-  <div class="modes" id="modes" role="tablist" aria-label="Document à remplir"><button type="button" role="tab" data-mode="constat">Constat amiable</button><button type="button" role="tab" data-mode="decl">Déclaration de sinistre</button><button type="button" role="tab" data-mode="contest">Contester l’indemnisation</button></div>
+ <section id="home" hidden>
+  <div class="step">
+   <p class="kicker">En 5 étapes</p>
+   <h2>Les étapes principales</h2>
+   <ol class="etapes">
+    <li><div><b>Arrêtez l’eau et protégez-vous</b><span>Fermez le robinet d’arrivée d’eau. Si l’eau touche des prises ou des lampes, coupez l’électricité.</span></div></li>
+    <li><div><b>Prévenez les bonnes personnes</b><span>Le voisin du dessus ou d’à côté, et le syndic ou le gardien si vous êtes en copropriété. Si vous êtes locataire, prévenez aussi votre propriétaire.</span></div></li>
+    <li><div><b>Prenez des photos</b><span>Plafonds, murs, sols, meubles abîmés. Gardez les objets endommagés jusqu’au passage de l’expert.</span></div></li>
+    <li><div><b>Remplissez le constat amiable</b><span>Avec le voisin concerné, ou avec le syndic si l’eau vient des parties communes. Un seul constat, signé par les deux.</span></div></li>
+    <li><div><b>Déclarez à votre assureur sous 5 jours ouvrés</b><span>Envoyez-lui le constat et les photos. C’est le délai minimum prévu par la loi (article L113-2 du Code des assurances) : votre contrat peut prévoir plus long.</span></div></li>
+   </ol>
+  </div>
+  <div id="resume"></div>
+  <div class="step sec">
+   <p class="kicker">Pour vous guider</p>
+   <h2>D’où vient l’eau ?</h2>
+   <div class="choix">
+    <button type="button" data-route="voisin"><span class="ic" aria-hidden="true">🏠</span><span><b>De chez un voisin</b><small>Fuite dans l’appartement du dessus ou d’à côté</small></span><span class="fl" aria-hidden="true">›</span></button>
+    <button type="button" data-route="syndic"><span class="ic" aria-hidden="true">🏢</span><span><b>Des parties communes</b><small>Colonne d’eau commune, toiture, façade, cave, couloir…</small></span><span class="fl" aria-hidden="true">›</span></button>
+    <button type="button" data-route="moi"><span class="ic" aria-hidden="true">🚿</span><span><b>De chez moi</b><small>Ma fuite a abîmé le logement d’un voisin</small></span><span class="fl" aria-hidden="true">›</span></button>
+    <button type="button" data-route="inconnu"><span class="ic" aria-hidden="true">❓</span><span><b>Je ne sais pas</b><small>L’origine de la fuite n’est pas encore trouvée</small></span><span class="fl" aria-hidden="true">›</span></button>
+   </div>
+  </div>
+ </section>
+ <section id="guide" hidden></section>
+ <div id="form">
+  <button type="button" class="link tohome" data-home="1">‹ Accueil</button>
+  <div class="modes" id="modes" role="tablist" hidden aria-label="Document à remplir"><button type="button" role="tab" data-mode="constat">Constat amiable</button><button type="button" role="tab" data-mode="decl">Déclaration de sinistre</button><button type="button" role="tab" data-mode="contest">Contester l’indemnisation</button></div>
   <div class="steps" id="dots"></div>
   <form class="step" id="step" autocomplete="on"></form>
+ </div>
 </main>
-<nav><div class="in">
+<nav id="fnav"><div class="in">
   <button class="btn" id="prev" type="button">Précédent</button>
   <button class="btn pri" id="next" type="button">Suivant</button>
+</div></nav>
+<nav id="gnav" hidden><div class="in">
+  <button class="btn" type="button" data-home="1">Retour</button>
+  <button class="btn pri" id="gstart" type="button">Remplir le constat</button>
 </div></nav>
 
 <script src="pdf-lib.min.js"></script>
@@ -164,7 +218,9 @@ const MODEKEY='cdde_mode';
 let mode='constat';try{const sm=localStorage.getItem(MODEKEY);if(sm==='decl'||sm==='contest')mode=sm;const q=new URLSearchParams(location.search).get('mode');if(q==='decl'||q==='constat'||q==='contest')mode=q}catch(e){}
 let KEY='constatDDE_v1';
 let d={};
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(d))}catch(e){}};
+/* Copie en mémoire : si le téléphone bloque le stockage, le constat reste disponible pour la déclaration */
+const MEM={};const lsGet=k=>{if(MEM[k]!=null)return MEM[k];let v=null;try{v=localStorage.getItem(k)}catch(e){}return v};
+const save=()=>{const j=JSON.stringify(d);MEM[KEY]=j;try{localStorage.setItem(KEY,j)}catch(e){}};
 const today=new Date().toISOString().slice(0,10);
 const YN=[['oui','Oui'],['non','Non']];
 
@@ -173,13 +229,14 @@ const party=P=>[
   {k:P+'_nom',l:'Nom et prénom',ty:'text',ac:'name'},
   {k:P+'_adresse',l:'Adresse',ty:'area'},
   {row:[{k:P+'_bat',l:'Bâtiment',ty:'text'},{k:P+'_etage',l:'Étage',ty:'text'}]},
-  {k:P+'_mail',l:'Mail',ty:'email'},
-  {k:P+'_tel',l:'Téléphone',ty:'tel'}]},
+  {k:P+'_mail',l:'Votre adresse mail',ty:'email'},
+  {k:P+'_tel',l:'Votre numéro de téléphone',ty:'tel'}]},
  {t:'Partie '+P+' — assurance',p:P,fields:[
-  {row:[{k:P+'_assureur',l:'Assureur',ty:'text'},{k:P+'_contrat',l:'Contrat n°',ty:'text'}]},
-  {k:P+'_sinistre',l:'Sinistre n°',ty:'text',h:'Si déjà déclaré'},
-  {row:[{k:P+'_agent',l:'Agent / courtier',ty:'text'},{k:P+'_agenttel',l:'Tél. agent',ty:'tel'}]},
-  {k:P+'_agentadr',l:'Adresse assureur / agent / courtier',ty:'area'}]},
+  {row:[{k:P+'_assureur',l:'Nom de votre assureur',ty:'text'},{k:P+'_contrat',l:'Votre numéro de contrat',ty:'text'}]},
+  {k:P+'_sinistre',l:'Votre numéro de sinistre',ty:'text',h:'S’il y en a déjà un. Sinon, laissez vide.'},
+  {ty:'info',l:'Si vous avez souscrit le contrat avec un agent ou courtier, merci de renseigner son nom, son numéro de téléphone et son adresse.'},
+  {row:[{k:P+'_agent',l:'Nom de l’agent ou courtier',ty:'text'},{k:P+'_agenttel',l:'Son numéro de téléphone',ty:'tel'}]},
+  {k:P+'_agentadr',l:'Son adresse',ty:'area'}]},
  {t:'Partie '+P+' — situation',p:P,fields:[
   {k:P+'_hab',l:'S’agit-il d’un local à usage d’habitation ?',ty:'radio',o:YN},
   {k:P+'_resil',l:'La résiliation du bail a-t-elle été demandée ?',ty:'radio',o:YN},
@@ -188,9 +245,13 @@ const party=P=>[
   {k:P+'_proprio',l:'Nom et coordonnées du propriétaire ou du gérant du logement',ty:'area',if:x=>x[P+'_qual']==='loc',sub:1},
   {k:P+'_occ',l:'Propriétaire',ty:'radio',o:[['occ','Occupant'],['nonocc','Non occupant']],if:x=>x[P+'_qual']==='prop',sub:1},
   {k:P+'_dom',l:'Avez-vous subi des dommages ?',ty:'radio',o:YN},
-  {k:P+'_domdesc',l:'Nature des dommages',ty:'text',h:'Ex. : plafond salle de bain taché, peinture cloquée',if:x=>x[P+'_dom']==='oui',sub:1}]}
+  {k:P+'_domdesc',l:'Nature des dommages',ty:'text',h:'Décrivez brièvement les dommages que vous avez chez vous. Exemple : « Le plafond de la salle de bain est taché, la peinture du couloir est cloquée et le parquet a gonflé. »',if:x=>x[P+'_dom']==='oui',sub:1}]}
 ];
 
+/* Légende des cases A / B de « L'origine est située chez », selon le choix fait à l'accueil */
+const ORIGLAB={voisin:['chez moi','chez le voisin'],syndic:['chez moi','dans les parties communes'],moi:['chez le voisin touché','chez moi']};
+/* Note à côté de « Signature partie A / B », selon le choix fait à l'accueil */
+const SIGLAB={voisin:{A:'ma signature',B:'le voisin'},syndic:{A:'ma signature',B:'le syndic'},moi:{A:'le voisin touché',B:'ma signature'}};
 const CSTEPS=[
  {t:'Le sinistre',fields:[
   {k:'adresse',l:'Adresse complète du lieu du sinistre',ty:'area'},
@@ -206,10 +267,10 @@ const CSTEPS=[
   {k:'rechqui',l:'Par qui ?',ty:'text',if:x=>x.rech==='oui',sub:1},
   {k:'ident',l:'La cause est-elle identifiée ?',ty:'radio',o:YN},
   {k:'repar',l:'La cause est-elle réparée ?',ty:'radio',o:YN},
-  {k:'orig',l:'L’origine est située chez',ty:'radio',o:[['A','A'],['B','B'],['ailleurs','Ailleurs']]},
+  {k:'orig',l:'L’origine est située chez',ty:'radio',o:x=>{const L=ORIGLAB[x._route]||['chez la personne qui a subi les dégâts','chez l’autre partie (voisin, parties communes…)'];return [['A','A : '+L[0]],['B','B : '+L[1]],['ailleurs','Ailleurs']]}},
   {k:'origprec',l:'Préciser',ty:'text',if:x=>x.orig==='ailleurs',sub:1}]},
  {t:'Nature de la fuite',fields:[
-  {k:'nat',l:'Il s’agit de (une ou plusieurs réponses)',ty:'check',o:[['canal','Fuite sur canalisation'],['appareil','Fuite ou débordement d’appareil à effet d’eau (évier, lavabo, machine à laver, chaudière, cumulus…)'],['cheneau','Fuite ou débordement de chéneaux ou gouttières'],['infil','Infiltrations'],['gel','Gel'],['autre','Autre cause']]},
+  {k:'nat',l:'Il s’agit de (une ou plusieurs réponses)',ty:'check',o:[['canal','Fuite sur canalisation'],['appareil','Fuite ou débordement d’appareil à effet d’eau (évier, lavabo, machine à laver, chaudière, cumulus…)'],['cheneau','Fuite ou débordement de chéneaux ou gouttières'],['infil','Infiltrations'],['gel','Gel'],['autre','Autre cause']],h:'Vous ne connaissez pas la nature de la fuite ? Choisissez « Autre cause » et écrivez « Je ne la connais pas ».'},
   {k:'canal1',l:'Canalisation',ty:'radio',o:[['commune','Commune'],['privative','Privative']],if:x=>has(x,'nat','canal'),sub:1},
   {k:'canal2',l:'Type',ty:'radio',o:[['alim','Alimentation'],['evac','Évacuation']],if:x=>has(x,'nat','canal'),sub:1},
   {k:'canal3',l:'Accès',ty:'radio',o:[['acc','Accessible'],['nonacc','Non accessible']],if:x=>has(x,'nat','canal'),sub:1},
@@ -240,12 +301,12 @@ const DSTEPS=[
  {t:'Vous, l’assuré',fields:[
   {k:'nom',l:'Nom et prénom',ty:'text',ac:'name'},
   {k:'adr',l:'Adresse',ty:'area'},
-  {row:[{k:'tel',l:'Téléphone',ty:'tel'},{k:'mail',l:'Mail',ty:'email'}]},
+  {row:[{k:'tel',l:'Votre numéro de téléphone',ty:'tel'},{k:'mail',l:'Votre adresse mail',ty:'email'}]},
   {k:'qual',l:'Vous êtes',ty:'radio',o:[['loc','Locataire'],['po','Propriétaire occupant'],['pno','Propriétaire non occupant'],['autre','Autre']]}]},
- {t:'Votre assureur',fields:[
-  {k:'assureur',l:'Nom de l’assureur',ty:'text',h:'Il figure sur votre contrat ou votre avis d’échéance.'},
+ {t:'Votre assureur',assfrom:1,fields:[
+  {k:'assureur',l:'Nom de votre assureur',ty:'text',h:'Il figure sur votre contrat ou votre avis d’échéance.'},
   {k:'assadr',l:'Adresse de l’assureur, de l’agence ou du courtier',ty:'area'},
-  {row:[{k:'contrat',l:'N° de contrat',ty:'text'},{k:'sinistre',l:'N° de sinistre',ty:'text',h:'Si déjà déclaré par téléphone'}]},
+  {row:[{k:'contrat',l:'Votre numéro de contrat',ty:'text'},{k:'sinistre',l:'Votre numéro de sinistre',ty:'text',h:'S’il y en a déjà un. Sinon, laissez vide.'}]},
   {k:'ctype',l:'Type de contrat',ty:'radio',o:[['mrh','Multirisque habitation'],['pno','Propriétaire non occupant'],['auto','Automobile'],['autre','Autre']]}]},
  {t:'Lieu et circonstances',fields:[
   {k:'lieu',l:'Adresse du lieu du sinistre',ty:'area',h:'Laissez vide si c’est votre adresse.'},
@@ -281,11 +342,11 @@ const CTSTEPS=[
  {t:'Vous, l’assuré',fields:[
   {k:'nom',l:'Nom et prénom',ty:'text',ac:'name'},
   {k:'adr',l:'Adresse',ty:'area'},
-  {row:[{k:'tel',l:'Téléphone',ty:'tel'},{k:'mail',l:'Mail',ty:'email'}]}]},
+  {row:[{k:'tel',l:'Votre numéro de téléphone',ty:'tel'},{k:'mail',l:'Votre adresse mail',ty:'email'}]}]},
  {t:'Votre assureur',fields:[
-  {k:'assureur',l:'Nom de l’assureur',ty:'text'},
+  {k:'assureur',l:'Nom de votre assureur',ty:'text'},
   {k:'assadr',l:'Adresse du service sinistres ou réclamations',ty:'area',h:'Elle figure sur les courriers de l’assureur ou dans votre contrat (rubrique « réclamations »).'},
-  {row:[{k:'contrat',l:'N° de contrat',ty:'text'},{k:'sinistre',l:'N° de sinistre',ty:'text'}]}]},
+  {row:[{k:'contrat',l:'Votre numéro de contrat',ty:'text'},{k:'sinistre',l:'Votre numéro de sinistre',ty:'text'}]}]},
  {t:'La position de l’assureur',fields:[
   {k:'decdate',l:'Date du courrier ou du rapport de l’assureur',ty:'date',if:x=>x.motif!=='retard'},
   {row:[{k:'propose',l:'Indemnité proposée (€)',ty:'text'},{k:'estime',l:'Montant que vous réclamez (€)',ty:'text'}],if:x=>x.motif!=='refus'},
@@ -309,7 +370,7 @@ function contestNote(){
  <li>Adressez d’abord la lettre au service sinistres ou réclamations. Sans réponse satisfaisante sous 2 mois, vous pouvez saisir gratuitement la <b>Médiation de l’assurance</b> (mediation-assurance.org).</li>
  <li>Attention au délai : en principe, une action contre l’assureur se prescrit par <b>2 ans</b> (article L114-1 du Code des assurances).</li></ul></div>`;
 }
-function declData(){try{return JSON.parse(localStorage.getItem('declSinistre_v1')||'{}')}catch(e){return{}}}
+function declData(){try{return JSON.parse(lsGet('declSinistre_v1')||'{}')}catch(e){return{}}}
 function fromDeclHTML(){const c=declData();if(!clean1(c.nom))return '';return `<div class="note"><p>Vous avez une déclaration de sinistre${c.date?' du '+fr(c.date):''}. Reprendre ses informations ?</p><button type="button" class="btn" data-fromdecl="1" style="width:100%;margin-top:8px;min-height:48px">Reprendre ma déclaration (${esc(clean1(c.nom))})</button></div>`}
 function fromDecl(){const c=declData();for(const k of ['nom','adr','tel','mail','assureur','assadr','contrat','sinistre','type','autretype','date','faita'])if(c[k]&&!d[k])d[k]=c[k];if(c.le&&!d.decl)d.decl=c.le;save()}
 function cletter(){
@@ -358,15 +419,30 @@ function delaiHTML(){
  return `<div class="note"><p><b>Délai pour déclarer : ${dl}</b>${t==='catnat'?'':' à partir du moment où vous découvrez le sinistre'}. C’est le minimum prévu par la loi : votre contrat peut prévoir plus long.</p>${extra}<p style="font-size:13px">En cas de retard, l’assureur ne peut refuser de vous indemniser que s’il prouve que ce retard lui a causé un préjudice (art. L113-2 du Code des assurances).</p></div>`;
 }
 /* Reprise des informations d'un constat amiable en cours */
-function constatData(){try{return JSON.parse(localStorage.getItem('constatDDE_v1')||'{}')}catch(e){return{}}}
+function constatData(){try{return JSON.parse(lsGet('constatDDE_v1')||'{}')}catch(e){return{}}}
 function prefillHTML(){
  const c=constatData(),ps=['A','B'].filter(P=>clean1(c[P+'_nom']));if(!ps.length)return '';
  return `<div class="note"><p>Vous avez un constat amiable dégât des eaux${c.date?' du '+fr(c.date):''}. Reprendre ses informations ?</p>${ps.map(P=>`<button type="button" class="btn" data-prefill="${P}" style="width:100%;margin-top:8px;min-height:48px">Je suis ${esc(clean1(c[P+'_nom']))} (partie ${P})</button>`).join('')}</div>`;
 }
-function prefill(P){
+/* Déclaration, étape « Votre assureur » : reprendre l'assureur déjà saisi dans le constat */
+function assFromHTML(){
+ const c=constatData();
+ return ['A','B'].filter(P=>clean1(c[P+'_assureur'])&&clean1(c[P+'_assureur'])!==clean1(d.assureur)).map(P=>`<button type="button" class="quick" data-assfrom="${P}" style="display:block">Reprendre l’assureur du constat : ${esc(clean1(c[P+'_assureur']))}${clean1(c[P+'_nom'])?' ('+esc(clean1(c[P+'_nom']))+')':''}</button>`).join('');
+}
+function assDiag(){if(clean1(d.assureur))return '';const c=constatData();
+ return `<p class="kicker">${['adresse','A_nom','B_nom'].some(k=>clean1(c[k]))?'Le constat ne contient pas encore de nom d’assureur (étape « assurance » de votre partie).':'Aucun constat dégât des eaux trouvé sur ce téléphone.'}</p>`}
+function assFrom(P){
  const c=constatData(),g=k=>c[P+'_'+k]||'';
- Object.assign(d,{type:'dde',date:c.date||d.date,lieu:c.adresse||'',nom:g('nom'),adr:g('adresse')||c.adresse||'',tel:g('tel'),mail:g('mail'),assureur:g('assureur'),contrat:g('contrat'),sinistre:g('sinistre'),
-  assadr:[g('agent'),g('agentadr')].filter(Boolean).join('\n'),qual:g('qual')==='loc'?'loc':g('qual')==='prop'?(g('occ')==='nonocc'?'pno':'po'):d.qual,constat:'oui',dombat:g('domdesc')||d.dombat,faita:c.faita||d.faita});
+ d.assureur=g('assureur');if(g('contrat'))d.contrat=g('contrat');if(g('sinistre'))d.sinistre=g('sinistre');
+ const adr=[g('agent'),g('agentadr')].filter(Boolean).join('\n');if(adr)d.assadr=adr;
+ save();
+}
+function prefill(P,onlyEmpty){
+ const c=constatData(),g=k=>c[P+'_'+k]||'';
+ const v={type:'dde',date:c.date||d.date,lieu:c.adresse||'',nom:g('nom'),adr:g('adresse')||c.adresse||'',tel:g('tel'),mail:g('mail'),assureur:g('assureur'),contrat:g('contrat'),sinistre:g('sinistre'),
+  assadr:[g('agent'),g('agentadr')].filter(Boolean).join('\n'),qual:g('qual')==='loc'?'loc':g('qual')==='prop'?(g('occ')==='nonocc'?'pno':'po'):d.qual,constat:'oui',dombat:g('domdesc')||d.dombat,faita:c.faita||d.faita};
+ /* onlyEmpty : ne remplit que les cases encore vides (reprise automatique) */
+ for(const k in v){if(!clean1(v[k]))continue;if(!onlyEmpty||!clean1(d[k]))d[k]=v[k]}
  if(!d.ctype)d.ctype='mrh';
  save();
 }
@@ -379,6 +455,20 @@ const mkIDB=name=>{let p;
  const tx=async(m,f)=>{const x=await db();return new Promise((res,rej)=>{const t=x.transaction('photos',m),r=f(t.objectStore('photos'));t.oncomplete=()=>res(r&&r.result);t.onerror=()=>rej(t.error)})};
  return{all:()=>tx('readonly',s=>s.getAll()),put:o=>tx('readwrite',s=>s.put(o)),del:id=>tx('readwrite',s=>s.delete(id)),clear:()=>tx('readwrite',s=>s.clear())};
 };
+/* Reprise automatique du constat dans la déclaration : la partie « moi » selon le choix fait à l'accueil */
+function autoFromConstat(){
+ const c=constatData();if(!['adresse','A_nom','B_nom'].some(k=>clean1(c[k])))return;
+ const P=c._route==='moi'?'B':c._route?'A':(clean1(c.A_nom)?'A':'B');
+ prefill(P,true);
+ /* Assureur, adresse, contrat, sinistre : toujours ceux du constat (mêmes coordonnées) */
+ assFromMe();
+}
+/* Partie « moi » du constat qui a un assureur renseigné */
+function assFromMe(){
+ const c=constatData(),P=c._route==='moi'?'B':c._route?'A':(clean1(c.A_nom)?'A':'B');
+ const Q=clean1(c[P+'_assureur'])?P:['A','B'].find(x=>clean1(c[x+'_assureur']));
+ if(Q){assFrom(Q);return true}return false;
+}
 const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre'),contest:mkIDB('contestIndem')};
 let IDB=IDBS.constat;
 const purl=p=>{if(!purls.has(p.id))purls.set(p.id,URL.createObjectURL(p.blob));return purls.get(p.id)};
@@ -417,29 +507,37 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 function fieldHTML(f){
  if(f.row){if(f.if&&!f.if(d))return '';return `<div class="row${f.sub?' sub':''}">${f.row.map(fieldHTML).join('')}</div>`}
  if(f.if&&!f.if(d))return '';
+ if(f.ty==='info')return `<p class="kicker" style="margin:0 0 10px">${f.l}</p>`;
  const id='f_'+f.k,v=d[f.k];
  let inner='';
  if(f.ty==='area')inner=`<textarea id="${id}" data-k="${f.k}"${f.big?' class="big"':''}>${esc(v)}</textarea>`;
- else if(f.ty==='radio'||f.ty==='check')inner=`<div class="opts" role="group">${f.o.map(([val,lab])=>{const on=f.ty==='radio'?v===val:has(d,f.k,val);return `<label class="opt"><input type="${f.ty==='radio'?'radio':'checkbox'}" name="${f.k}" value="${val}" data-k="${f.k}" data-ty="${f.ty}" ${on?'checked':''}><span>${lab}</span></label>`}).join('')}</div>`;
+ else if(f.ty==='radio'||f.ty==='check')inner=`<div class="opts" role="group">${opts(f).map(([val,lab])=>{const on=f.ty==='radio'?v===val:has(d,f.k,val);return `<label class="opt"><input type="${f.ty==='radio'?'radio':'checkbox'}" name="${f.k}" value="${val}" data-k="${f.k}" data-ty="${f.ty}" ${on?'checked':''}><span>${lab}</span></label>`}).join('')}</div>`;
  else inner=`<input id="${id}" data-k="${f.k}" type="${f.ty}" value="${esc(v)}" ${f.ty==='email'?'inputmode="email"':''}${f.ty==='tel'?'inputmode="tel"':''}${f.ac?` autocomplete="${f.ac}"`:''}>`;
  const lab=(f.ty==='radio'||f.ty==='check')?`<span class="lab">${f.l}</span>`:`<label for="${id}">${f.l}</label>`;
- return `<div class="f${f.sub?' sub':''}">${lab}${inner}${f.h?`<small>${f.h}</small>`:''}</div>`;
+ /* Adresse d'une partie : proposer l'adresse du sinistre */
+ const same=mode==='constat'&&/^[AB]_adresse$/.test(f.k)&&clean1(d.adresse)?`<button type="button" class="quick" data-sameadr="${f.k}" style="display:block;margin:0 0 8px"${clean1(v)===clean1(d.adresse)?' hidden':''}>Même adresse que le sinistre</button>`:'';
+ return `<div class="f${f.sub?' sub':''}">${lab}${same}${inner}${f.h?`<small>${f.h}</small>`:''}</div>`;
 }
 
+/* Première étape après la partie B (pour la sauter quand le syndic n'est pas encore joint) */
+const skipB=()=>{let i=-1;STEPS.forEach((x,k)=>{if(x.p==='B')i=k});return i+1};
+/* Choix d'une question : liste fixe, ou fonction des réponses (ex. légende de l'origine selon le parcours) */
+const opts=f=>typeof f.o==='function'?f.o(d):f.o;
 function render(){
  const s=STEPS[cur];d._step=cur;save();
  $('#bar').style.width=((cur+1)/STEPS.length*100)+'%';
  $('#dots').innerHTML=STEPS.map((x,i)=>`<button type="button" data-go="${i}" class="${i===cur?'on':i<cur?'done':''}" aria-label="Étape ${i+1} : ${esc(x.t)}">${i+1}</button>`).join('');
  const st=$('#step');st.className='step'+(s.p?' '+s.p:'');
  let h=`<p class="kicker">Étape ${cur+1} sur ${STEPS.length}</p><h2>${s.p?`<span class="tag ${s.p}">${s.p}</span>`:''}${esc(s.t.replace(/^Partie [AB] — /,s.p?'':'$&'))}</h2>`;
- if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p))h+=`<p class="kicker" style="margin:-8px 0 14px">${s.p==='A'?'Partie A : en principe l’occupant du local d’où provient l’eau, ou le premier signataire.':'Partie B : l’autre personne concernée (voisin, propriétaire…). Laissez vide si elle n’existe pas.'}</p>`;
+ if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p)){const R=mode==='constat'&&ROUTES[d._route];h+=`<p class="kicker" style="margin:-8px 0 14px">${R&&R.A?`Partie ${s.p} : ${R[s.p].toLowerCase()}.${s.p==='B'&&R.Bnote?' '+R.Bnote.replace('{n}',skipB()+1):''}`:s.p==='A'?'Partie A : la personne qui a subi les dégâts.':'Partie B : la personne chez qui se trouve la fuite (voisin, syndic…). Laissez vide si elle n’existe pas.'}</p>`;if(s.p==='B'&&R&&R.Bnote)h+=`<button type="button" class="quick" data-go="${skipB()}">Passer à l’étape ${skipB()+1} : ${esc(STEPS[skipB()].t)}</button>`}
  if(s.quick){let m=null;try{m=JSON.parse(localStorage.getItem('constatDDE_syndic')||'null')}catch(e){}h+=m?`<button type="button" class="quick" id="syn-use">Reprendre : ${esc(m.syndic.split('\n')[0])}</button> <button type="button" class="link" id="syn-save">Mémoriser ce syndic</button>`:`<button type="button" class="link" id="syn-save">Mémoriser ce syndic pour les prochains constats</button>`}
  if(s.delai)h+=prefillHTML();
+ if(s.assfrom){if(!clean1(d.assureur))assFromMe();h+=assFromHTML()+assDiag()}
  if(s.fromdecl)h+=fromDeclHTML()+contestNote();
  h+=s.fields.map(fieldHTML).join('');
  if(s.delai)h+=delaiHTML();
  if(s.items)h+=itemsHTML();
- if(s.sign)h+=s.sign.map(P=>`<div class="f"><span class="lab">${P==='D'?'Votre signature':`<span class="tag ${P}">${P}</span>Signature partie ${P}`}</span><canvas class="sig" id="sig${P}" data-p="${P}"></canvas><div class="sigbar"><span>Signez avec le doigt</span><button type="button" class="link" data-clear="${P}">Effacer</button></div></div>`).join('');
+ if(s.sign)h+=s.sign.map(P=>`<div class="f"><span class="lab">${P==='D'?'Votre signature':`<span class="tag ${P}">${P}</span>Signature partie ${P}${mode==='constat'&&SIGLAB[d._route]?' : '+SIGLAB[d._route][P]:''}`}</span><canvas class="sig" id="sig${P}" data-p="${P}"></canvas><div class="sigbar"><span>Signez avec le doigt</span><button type="button" class="link" data-clear="${P}">Effacer</button></div></div>`).join('');
  if(s.photos)h+=photosHTML();
  if(s.recap)h+=recapHTML();
  st.innerHTML=h;
@@ -454,7 +552,7 @@ function render(){
 const mkFlat=S=>S.flatMap((s,i)=>s.fields.flatMap(f=>f.row?f.row.map(r=>({...r,if:r.if||f.if})):[f]).map(f=>({...f,step:i})));
 function show(f){
  const v=d[f.k];if(v==null||v===''||(Array.isArray(v)&&!v.length))return null;
- if(f.o){const arr=[].concat(v);return arr.map(x=>(f.o.find(o=>o[0]===x)||[,x])[1]).join(', ')}
+ if(f.o){const arr=[].concat(v);return arr.map(x=>(opts(f).find(o=>o[0]===x)||[,x])[1]).join(', ')}
  if(f.ty==='date')return fr(v);return v;
 }
 function fr(v){if(!v)return'';const[y,m,dd]=v.split('-');return `${dd}/${m}/${y}`}
@@ -467,7 +565,7 @@ function recapHTML(){
   return `<section><h3>${esc(s.t)}<button type="button" class="link" data-go="${i}">Modifier</button></h3>${rows.length?`<dl>${rows.map(r=>`<dt>${esc(r[0].replace(/ \?$/,''))}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl>`:'<small style="color:var(--mute)">Non renseigné</small>'}</section>`}).join('');
  return `${M().recapBefore?M().recapBefore():''}<div class="recap">${groups}</div>
  <div class="actions">
-  <div class="f" style="margin:6px 0 0"><label for="mailto">Envoyer à (mail)</label><input id="mailto" type="email" inputmode="email" data-k="mailto" value="${esc(d.mailto||'')}" placeholder="${M().mailPh}"></div>
+  <div class="f" style="margin:6px 0 0"><label for="mailto">Envoyer à (mail)</label><input id="mailto" type="email" multiple inputmode="email" data-k="mailto" value="${esc(d.mailto||'')}" placeholder="${M().mailPh}"><small>Vous pouvez mettre plusieurs adresses mail, séparées par des virgules.</small></div>
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox" id="mailinfo">${NATIVE?M().mailInfo:'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
@@ -554,16 +652,19 @@ document.addEventListener('click',e=>{
  const di=e.target.closest('[data-delit]');if(di){d.items.splice(+di.dataset.delit,1);save();keepScroll();return}
  const pf=e.target.closest('[data-prefill]');if(pf){prefill(pf.dataset.prefill);keepScroll();return}
  if(e.target.closest('[data-fromdecl]')){fromDecl();keepScroll();return}
- if(e.target.dataset.todecl!=null){const P=e.target.dataset.todecl;setMode('decl');if(P&&!clean1(d.nom)){prefill(P);cur=0;render()}return}
+ const af=e.target.closest('[data-assfrom]');if(af){assFrom(af.dataset.assfrom);keepScroll();return}
+ if(e.target.dataset.todecl!=null){const P=e.target.dataset.todecl;showView('form');setMode('decl');if(P&&clean1(d.nom)!==clean1(constatData()[P+'_nom'])){prefill(P);const c=constatData();assFrom(clean1(c[P+'_assureur'])?P:(['A','B'].find(x=>clean1(c[x+'_assureur']))||P));cur=0;render()}return}
 });
 document.addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;
  if(e.target.dataset.ty==='check'){const a=new Set(d[k]||[]);e.target.checked?a.add(e.target.value):a.delete(e.target.value);d[k]=[...a]}
  else d[k]=e.target.value;
  save();
+ const sb=document.querySelector(`[data-sameadr="${k}"]`);if(sb)sb.hidden=clean1(d[k])===clean1(d.adresse);
  if(e.target.dataset.ty){const y=window.scrollY;const focusK=e.target.name,val=e.target.value;render();window.scrollTo({top:y});const el=document.querySelector(`input[name="${focusK}"][value="${val}"]`);el&&el.focus({preventScroll:true})}
 });
 document.addEventListener('click',e=>{
  const g=e.target.closest('[data-go]');if(g){cur=+g.dataset.go;render();return}
+ const sa=e.target.closest('[data-sameadr]');if(sa){d[sa.dataset.sameadr]=d.adresse;save();keepScroll();return}
  const c=e.target.closest('[data-clear]');if(c){delete d['sig'+c.dataset.clear];save();setupSig(c.dataset.clear);return}
  if(e.target.id==='syn-save'){try{localStorage.setItem('constatDDE_syndic',JSON.stringify({syndic:d.syndic||'',syndictel:d.syndictel||''}))}catch(x){}render();return}
  if(e.target.id==='syn-use'){try{const m=JSON.parse(localStorage.getItem('constatDDE_syndic'));d.syndic=m.syndic;d.syndictel=m.syndictel}catch(x){}save();render()}
@@ -798,14 +899,14 @@ const MODES={
   newLabel:'Nouveau constat',folder:'Constats',mailPh:'assureur, syndic…',
   mailInfo:'Choisissez Gmail ou Outlook dans la liste : le PDF (3 exemplaires A, B, syndic) est joint automatiquement.',
   saved:n=>'PDF enregistré dans Documents › Constats : '+esc(n)+'. Les 3 exemplaires (A, B, syndic) sont dans le même fichier.',
-  recapAfter:()=>`<section class="devis"><h3>Déclarer le sinistre à votre assureur</h3><p>Envoyez le constat à votre assureur dans les 5 jours ouvrés. Pour détailler vos dommages et les biens abîmés, ou si l’assureur demande une lettre de déclaration, préparez-la ici : les informations du constat sont reprises.</p>${['A','B'].filter(P=>clean1(d[P+'_nom'])).map(P=>`<button type="button" class="btn" data-todecl="${P}">Déclarer${clean1(d.B_nom)?' pour '+esc(clean1(d[P+'_nom'])):''}</button>`).slice(0,2).join('')||'<button type="button" class="btn" data-todecl="">Préparer la déclaration</button>'}</section>`,
+  recapAfter:()=>`<section class="devis"><h3>Déclarer le sinistre à votre assureur</h3><p>Envoyez le constat à votre assureur dans les 5 jours ouvrés. Pour détailler vos dommages et les biens abîmés, ou si l’assureur demande une lettre de déclaration, préparez-la ici : les informations du constat sont reprises.</p>${['A','B'].filter(P=>clean1(d[P+'_nom'])).map(P=>`<button type="button" class="btn" data-todecl="${P}">Déclarer${clean1(d.B_nom)?' pour '+esc(clean1(d[P+'_nom'])):''}</button>`).slice(0,2).join('')||'<button type="button" class="btn" data-todecl="">Préparer la déclaration</button>'}</section><section class="devis" style="margin-top:12px"><h3>Plus tard : l’indemnisation ne vous convient pas ?</h3><p>Montant trop faible, refus de garantie ou paiement qui tarde : préparez une lettre de contestation pour votre assureur.</p><button type="button" class="btn" data-open="contest">Contester l’indemnisation</button></section>`,
   build:()=>buildConstat(),fname:()=>{const n=(d.A_nom||'').trim().split(/\s+/).pop()||'';return `Constat_DDE_${(d.date||today)}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>mailParts()},
  decl:{key:'declSinistre_v1',steps:DSTEPS,title:'Déclaration de sinistre',sub:'Lettre à votre assureur : vol, incendie, dégât des eaux, bris de glace…',
   newLabel:'Nouvelle déclaration',folder:'Declarations',mailPh:'adresse mail de votre assureur',
   mailInfo:'Choisissez Gmail ou Outlook dans la liste : la déclaration en PDF est jointe automatiquement.',
   saved:n=>'PDF enregistré dans Documents › Declarations : '+esc(n)+'.',
   recapBefore:()=>{const l=dletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>p.table?`<p>${esc(p.intro)}</p><ul style="margin:0 0 8px;padding-left:20px">${p.table.map(it=>`<li>${esc(clean1(it.des)||'Bien')}${num(it.val)?' — '+esc(eur(num(it.val))):''}</li>`).join('')}</ul>`:`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
-  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve de la date :</b> envoyez la déclaration par mail à votre assureur ou par l’espace client, ou imprimez-la et envoyez-la en <b>lettre recommandée avec accusé de réception</b>. Joignez le récépissé de plainte, le constat amiable et les factures si vous les avez.</p></div>`,
+  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve de la date :</b> envoyez la déclaration par mail à votre assureur ou par l’espace client, ou imprimez-la et envoyez-la en <b>lettre recommandée avec accusé de réception</b>. Joignez le récépissé de plainte, le constat amiable et les factures si vous les avez.</p></div><section class="devis" style="margin-top:12px"><h3>Plus tard : l’indemnisation ne vous convient pas ?</h3><p>Montant trop faible, refus de garantie ou paiement qui tarde : préparez une lettre de contestation pour votre assureur.</p><button type="button" class="btn" data-open="contest">Contester l’indemnisation</button></section>`,
   build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()},
  contest:{key:'contestIndem_v1',steps:CTSTEPS,title:'Contester l’indemnisation',sub:'Indemnité trop faible, refus de garantie, contre-expertise',letter:()=>cletter(),
   newLabel:'Nouvelle contestation',folder:'Contestations',mailPh:'service sinistres ou réclamations de l’assureur',
@@ -822,7 +923,8 @@ const fname=()=>M().fname();
 function setMode(m){
  mode=m;try{localStorage.setItem(MODEKEY,m)}catch(e){}
  if(typeof Stats!=='undefined')Stats.screen(m);
- const C=MODES[m];KEY=C.key;d={};try{d=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}if(!d.le)d.le=today;
+ const C=MODES[m];KEY=C.key;d={};try{d=JSON.parse(lsGet(KEY)||'{}')}catch(e){}if(!d.le)d.le=today;
+ if(m==='decl')autoFromConstat();
  STEPS=C.steps;FLAT=mkFlat(STEPS);cur=Math.min(+(d._step||0),STEPS.length-1);
  IDB=IDBS[m];photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();
  $('#ttl').textContent=C.title;$('#sub').textContent=C.sub;document.title=C.title;
@@ -871,6 +973,8 @@ const cancelled=e=>/cancel|annul|abort/i.test(String(e&&(e.message||e.errorMessa
 function webDownload(bytes){const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const a=document.createElement('a');a.href=url;a.download=fname();document.body.appendChild(a);a.click();a.remove();return url}
 /* Envoi commun : renvoie le message à afficher */
 async function sendMail(bytes,parts,dialog){
+ /* Plusieurs adresses possibles : séparées par des virgules, sans espaces */
+ parts={...parts,to:String(parts.to||'').split(/[,;\s]+/).filter(Boolean).join(',')};
  const {to,subj,body}=parts;
  if(NATIVE){const pre=await nativeSend(bytes,parts,dialog);return pre||!to?'Mail prêt avec le PDF joint : vérifiez puis envoyez.':'Dans le mail, saisissez le destinataire : <b>'+esc(to)+'</b>'}
  const file=new File([bytes],fname(),{type:'application/pdf'});
@@ -925,14 +1029,79 @@ const Stats=(()=>{
  const screen=n=>{if(on&&F)F.setCurrentScreen({screenName:n}).catch(()=>{})};
  return {init,ev,screen};
 })();
+/* ---------- Accueil guidé : étapes principales, puis « D'où vient l'eau ? » mène à une 2e page adaptée ---------- */
+const ROUTES={
+ voisin:{k:'L’eau vient de chez un voisin',t:'Remplissez le constat avec votre voisin',A:'Vous, qui avez subi les dégâts',B:'Le voisin chez qui se trouve la fuite',
+  todo:['Prévenez votre voisin (sonnez, ou laissez-lui un mot) pour qu’il arrête la fuite.','Remplissez le constat ensemble, sur ce téléphone. Chacun signe avec le doigt.','Chacun envoie le constat à son propre assureur, sous 5 jours ouvrés.'],
+  prep:'nom, adresse, assureur et numéro de contrat de chacun (sur l’attestation d’assurance habitation).',
+  extra:'Votre voisin est absent ou refuse ? Remplissez quand même votre partie et envoyez le constat à votre assureur en expliquant la situation.',pre:{orig:'B'}},
+ syndic:{k:'L’eau vient des parties communes',t:'Remplissez le constat avec le syndic',A:'Vous, qui avez subi les dégâts',B:'Le syndic, pour le syndicat des copropriétaires',Bnote:'Vous n’êtes pas encore en contact avec votre syndic ? Passez directement à l’étape {n} et envoyez quand même le constat : le syndic remplira la partie B.',
+  todo:['Prévenez le syndic tout de suite (téléphone puis mail) : c’est lui qui fait réparer les parties communes.','Remplissez seulement votre partie (partie A), signez, et envoyez le constat par mail à votre syndic. Pas besoin qu’il se déplace.','Le syndic remplit la partie B pour la copropriété, signe, et vous renvoie le constat. Il déclare aussi le sinistre à l’assureur de l’immeuble, qui organise la recherche de fuite.','Envoyez le constat signé par vous deux à votre assureur.'],
+  prep:'vos coordonnées et votre assureur, le nom, l’adresse et le mail du syndic (sur l’appel de charges ou l’affichage du hall).',
+  extra:'N’attendez pas le retour du syndic pour prévenir votre assureur : déclarez le sinistre dans les 5 jours ouvrés, puis envoyez-lui le constat complet dès que vous l’avez. Gardez une copie de vos mails.',pre:{type:'copro',orig:'B',B_qual:'syndic'}},
+ moi:{k:'L’eau vient de chez vous',t:'Remplissez le constat avec le voisin touché',A:'Le voisin qui a subi les dégâts',B:'Vous, chez qui se trouve la fuite',
+  todo:['Arrêtez la fuite et faites-la réparer (plombier). Gardez la facture.','Remplissez le constat avec votre voisin. Chacun signe avec le doigt.','Chacun envoie le constat à son propre assureur, sous 5 jours ouvrés.'],
+  prep:'nom, adresse, assureur et numéro de contrat de chacun (sur l’attestation d’assurance habitation).',
+  extra:'Si la fuite vient d’une canalisation commune (colonne d’eau), revenez en arrière et choisissez plutôt « Des parties communes ».',pre:{orig:'B'}},
+ inconnu:{k:'L’origine n’est pas connue',t:'Faites d’abord rechercher la fuite',
+  todo:['Prévenez votre assureur, et le syndic si vous êtes en copropriété. Une recherche de fuite sera organisée.','C’est un assureur qui l’organise (convention IRSI) : celui de l’immeuble si la fuite semble venir des parties communes, sinon en général celui de l’occupant du logement abîmé.','Vous pouvez déjà remplir le constat avec le voisin ou le syndic, en indiquant que la cause n’est pas identifiée. Il sera complété ensuite.'],
+  extra:'Ne faites pas casser un mur ou un sol sans l’accord de votre assureur.',btn:'Remplir le constat quand même',pre:{ident:'non'}}
+};
+let view='form',route=null;
+/* Un constat est « en cours » dès qu'une seule case a été remplie par la personne (hors réglages automatiques) */
+const AUTOK=new Set(['le','_step','_route','type','orig','origprec','B_qual','ident']);
+const constatStarted=()=>{const c=constatData();return Object.keys(c).some(k=>!AUTOK.has(k)&&(Array.isArray(c[k])?c[k].length:clean1(c[k])))};
+function showView(v){
+ view=v;
+ $('#home').hidden=v!=='home';$('#guide').hidden=v!=='guide';$('#form').hidden=v!=='form';
+ $('#fnav').hidden=v!=='form';$('#gnav').hidden=v!=='guide';
+ document.querySelector('.prog').style.display=v==='form'?'':'none';
+ if(v!=='form'){$('#ttl').textContent='Dégât des eaux\u00a0: que faire\u00a0?';$('#sub').textContent='Les bons gestes, puis le constat avec la bonne personne';document.title='Dégât des eaux : que faire ?'}
+ window.scrollTo({top:0});
+}
+function goHome(){
+ const c=constatData();
+ $('#resume').innerHTML=constatStarted()?`<div class="note sec"><p>Vous avez un constat en cours${c.date?' (dégât du '+fr(c.date)+')':''}.</p><button type="button" class="btn pri" data-open="constat" style="width:100%;min-height:48px">Reprendre mon constat</button></div>`:'';
+ showView('home');Stats.screen('accueil');
+}
+function goGuide(r){
+ route=r;const R=ROUTES[r];
+ $('#guide').innerHTML=`<div class="step"><p class="kicker">${R.k}</p><h2>${R.t}</h2>
+  ${R.A?`<div class="qui"><div class="A"><b>Partie A</b>${R.A}</div><div class="B"><b>Partie B</b>${R.B}</div></div>`:''}
+  <div class="note"><p><b>Ce qu’il faut faire</b></p>${R.todo.map((x,i)=>`<p>${i+1}. ${x}</p>`).join('')}</div>
+  ${R.prep?`<p class="kicker" style="margin-bottom:8px"><b>Préparez</b> : ${R.prep}</p>`:''}
+  <p class="kicker">${R.extra}</p><div id="gout"></div></div>`;
+ $('#gstart').textContent=R.btn||'Remplir le constat';
+ showView('guide');Stats.screen('guide_'+r);
+}
+function openForm(m){showView('form');setMode(m)}
+async function newConstat(r){
+ {const j=JSON.stringify({le:today,_route:r,...ROUTES[r].pre});MEM.constatDDE_v1=j;try{localStorage.setItem('constatDDE_v1',j)}catch(e){}}
+ try{await IDBS.constat.clear()}catch(e){}
+ openForm('constat');
+}
+$('#gstart').onclick=()=>{
+ if(!constatStarted()){newConstat(route);return}
+ const o=$('#gout');o.innerHTML=`<div class="msg">Un constat est déjà en cours. Que voulez-vous faire ?<div class="actions"><button type="button" class="btn" data-open="constat">Continuer le constat en cours</button><button type="button" class="btn pri" id="gnew">Commencer un nouveau constat</button></div><small style="display:block;margin-top:8px">Un nouveau constat efface les réponses et les photos du constat en cours.</small></div>`;
+ $('#gnew').onclick=()=>newConstat(route);o.scrollIntoView({behavior:'smooth'});
+};
+document.addEventListener('click',e=>{
+ const r=e.target.closest('[data-route]');if(r){goGuide(r.dataset.route);return}
+ const o=e.target.closest('[data-open]');if(o){openForm(o.dataset.open);return}
+ if(e.target.closest('[data-home]'))goHome();
+});
+
 setMode(mode);
+/* Ouverture avec ?mode=… (liens du site vitfix.fr) : directement le formulaire ; sinon l'accueil */
+let fromLink=false;try{fromLink=!!new URLSearchParams(location.search).get('mode')}catch(e){}
+if(fromLink)showView('form');else goHome();
 Stats.init();
 window.addEventListener('resize',()=>{if(STEPS[cur].sign)STEPS[cur].sign.forEach(setupSig)});
 window.__cdde={build:()=>buildPDF(),letter:()=>dletter(),cletter:()=>cletter(),setMode};
 
-/* Bouton retour Android = étape précédente ; quitte l'appli à la 1re étape */
+/* Bouton retour Android = étape précédente ; à la 1re étape ou sur la 2e page, retour à l'accueil ; quitte l'appli depuis l'accueil */
 if(NATIVE&&CAP.Plugins.App){
- CAP.Plugins.App.addListener('backButton',()=>{if(cur>0){cur--;render()}else CAP.Plugins.App.exitApp()});
+ CAP.Plugins.App.addListener('backButton',()=>{if(view==='form'&&cur>0){cur--;render()}else if(view!=='home')goHome();else CAP.Plugins.App.exitApp()});
 }
 if(NATIVE&&CAP.Plugins.SplashScreen)CAP.Plugins.SplashScreen.hide();
 }
