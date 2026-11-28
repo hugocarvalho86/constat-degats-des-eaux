@@ -1663,7 +1663,7 @@ const Acc=(()=>{
  function codeScr(note){
   page('code',kind==='login'?'Me connecter':'Créer mon compte','Sans mot de passe : un code par e-mail',top('Retour','back')+`<form class="step" data-accform="code" novalidate>
    <p class="kicker">Étape 2 sur 2</p><h2>Tapez le code reçu</h2>
-   <p style="margin:0 0 10px;font-size:15px">Envoyé à ${esc(em)}. Il est valable 10 minutes.</p>
+   <p style="margin:0 0 10px;font-size:15px">Envoyé à ${esc(em)}. Il est valable 1 heure.</p>
    <div class="code">${'<div></div>'.repeat(6)}<input id="acc-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="Code à 6 chiffres"></div>
    <button class="btn pri" type="submit">Valider</button><div id="accout"></div>
    <p class="small"><button type="button" class="link" data-acc="resend">Renvoyer le code</button> · <button type="button" class="link" data-acc="chmail">Changer d’adresse</button></p></form>`+SIMNOTE);
