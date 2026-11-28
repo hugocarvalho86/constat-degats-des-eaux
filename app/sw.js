@@ -1,4 +1,4 @@
-const C='constat-dde-202611281100';
+const C='constat-dde-202611281110';
 const F=["./","apple-touch-icon.png","constat.pdf","fonts/archivo-latin-500-normal.woff2","fonts/archivo-latin-700-normal.woff2","fonts/archivo-latin-800-normal.woff2","fonts/fonts.css","fonts/inter-latin-400-normal.woff2","fonts/inter-latin-500-normal.woff2","fonts/inter-latin-600-normal.woff2","icon-192.png","icon-512.png","manifest.webmanifest","pdf-lib.min.js"];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim()))});

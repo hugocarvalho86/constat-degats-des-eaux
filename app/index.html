@@ -873,7 +873,10 @@ function dletter(){
  if(needPlainte(x)&&x.plainte==='oui'){const inf=[c(x.pou),c(x.pno)&&'procès-verbal n° '+c(x.pno)].filter(Boolean).join(', ');P.push(`J’ai déposé plainte${x.pdate?' le '+fr(x.pdate):''}${inf?' ('+inf+')':''}. Le récépissé est joint à la présente.`)}
  if(needPlainte(x)&&x.plainte==='non')P.push('Je dépose plainte dans les meilleurs délais et vous transmettrai le récépissé.');
  if(x.type==='incendie'&&x.pompiers==='oui')P.push('Les sapeurs-pompiers sont intervenus.');
- if(x.type==='dde'&&x.constat==='oui')P.push('Un constat amiable dégât des eaux a été établi ; il vous est transmis avec la présente déclaration.');
+ if(x.type==='dde'&&x.constat==='oui'){const k=declConstat();
+  P.push(!k?'Un constat amiable dégât des eaux a été établi ; il vous est transmis avec la présente déclaration.'
+   :k.sigA&&k.sigB?'Un constat amiable dégât des eaux a été établi et signé par les deux parties ; il est joint à la présente déclaration.'
+   :'Un constat amiable dégât des eaux a été établi ; il est joint à la présente déclaration. Il n’est pas encore signé par les deux parties : je vous transmettrai l’exemplaire complet dès réception.')}
  if(x.tiers==='oui')P.push(`La personne suivante est responsable ou impliquée : ${c(x.tiersid)||'identité à préciser'}.`);
  if(c(x.dombat))P.push('Dommages au logement : '+String(x.dombat).trim().replace(/\.$/,'')+'.');
  const it=items();
@@ -897,6 +900,20 @@ function wrapT(text,f,size,w){
   if(ln)out.push(ln);
  }
  return out;
+}
+/* Constat joint à la déclaration : celui reçu par lien ou du compte (_constat), sinon celui du téléphone */
+function declConstat(){const k=d._constat||constatData();return ['A_nom','B_nom','adresse'].some(x=>clean1(k[x]))?k:null}
+/* Déclaration dégât des eaux : la lettre, puis l'exemplaire du constat de la personne qui déclare */
+async function buildDeclFull(){
+ const bytes=await buildDecl();
+ if(mode!=='decl'||d.type!=='dde'||d.constat!=='oui')return bytes;
+ const k=declConstat();if(!k)return bytes;
+ try{const cb=await withDoc('constat',{...k},[],()=>buildConstat());
+  const {PDFDocument}=PDFLib,out=await PDFDocument.load(bytes),src=await PDFDocument.load(cb);
+  const i=clean1(d.nom)&&clean1(d.nom)===clean1(k.B_nom)?1:0;
+  const [pg]=await out.copyPages(src,[Math.min(i,src.getPageCount()-1)]);out.addPage(pg);
+  return await out.save()}
+ catch(e){return bytes}
 }
 async function buildDecl(){
  const {PDFDocument,StandardFonts,rgb}=PDFLib;
@@ -972,7 +989,7 @@ const MODES={
   saved:n=>'PDF enregistré dans Documents › Declarations : '+esc(n)+'.',
   recapBefore:()=>{const l=dletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>p.table?`<p>${esc(p.intro)}</p><ul style="margin:0 0 8px;padding-left:20px">${p.table.map(it=>`<li>${esc(clean1(it.des)||'Bien')}${num(it.val)?' — '+esc(eur(num(it.val))):''}</li>`).join('')}</ul>`:`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
   recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve de la date :</b> envoyez la déclaration par mail à votre assureur ou par l’espace client, ou imprimez-la et envoyez-la en <b>lettre recommandée avec accusé de réception</b>. Joignez le récépissé de plainte, le constat amiable et les factures si vous les avez.</p></div><section class="devis" style="margin-top:12px"><h3>Plus tard : l’indemnisation ne vous convient pas ?</h3><p>Montant trop faible, refus de garantie ou paiement qui tarde : préparez une lettre de contestation pour votre assureur.</p><button type="button" class="btn" data-open="contest">Contester l’indemnisation</button></section>`,
-  build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()},
+  build:()=>buildDeclFull(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()},
  contest:{key:'contestIndem_v1',steps:CTSTEPS,title:'Contester l’indemnisation',sub:'Indemnité trop faible, refus de garantie, contre-expertise',letter:()=>cletter(),
   newLabel:'Nouvelle contestation',folder:'Contestations',mailPh:'service sinistres ou réclamations de l’assureur',
   mailInfo:'Choisissez Gmail ou Outlook dans la liste : la lettre en PDF est jointe automatiquement.',
@@ -1493,7 +1510,7 @@ const Acc=(()=>{
    else if(r.skipped)say(`Votre compte garde ${Cloud.maxPhotos} photos par dossier : ${r.skipped>1?'les '+r.skipped+' dernières restent':'la dernière reste'} seulement sur ce téléphone.`,0,'accsync');
   }).catch(e=>say('Enregistrement dans le compte impossible pour l’instant : '+emsg(e),1,'accsync'));
  }
- function sent(){if(!user||mode!=='constat'||!d._dossier)return;const id=d._dossier;
+ function sent(){if(!user||!['constat','decl'].includes(mode))return;const id=mode==='decl'?(d._dz||d._dossier||docData('constat')._dossier):d._dossier;if(!id)return;
   enqueue(async()=>{const z=await Cloud.getDossier(id);if(z.mine){localDz=await Cloud.saveDossier({...z,sentAt:new Date().toISOString()});list=null}}).catch(()=>{})}
 
  /* ----- Connexion : e-mail puis code à 6 chiffres ----- */
@@ -1573,8 +1590,8 @@ const Acc=(()=>{
   if(z.photos)docs+=row(`Photos (${z.photos})`,'<button type="button" class="link" data-acc="photos">Voir</button>');
   let next='';
   if(z.mine&&z.constat&&c.date){const lim=ouvres(c.date,5),late=lim<today,full=both(z),qui=z.share?roleL(z.share.role):'l’autre partie';
-   next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Constat envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF.${full?'':` Dès que ${qui} aura signé, renvoyez le constat complet à votre assureur.`}</p><button class="btn" type="button" data-acc="send">Renvoyer à mon assureur</button><div id="accout3"></div></div>`
-    :`<div class="card yel"><h3>Prochaine étape</h3><p>${late?`Le délai de 5 jours ouvrés est passé depuis le ${frL(lim)} : envoyez le constat à votre assureur dès que possible.`:`Envoyez le constat à votre assureur avant le ${frL(lim)} (5 jours ouvrés).`}${full?'':`</p><p>L’idéal est d’envoyer le constat rempli et signé par les deux. Mais si ${qui} n’a pas encore signé, n’attendez pas : envoyez-le quand même dans le délai, puis renvoyez-le complet dès qu’il aura signé.`}</p><button class="btn pri" type="button" data-acc="send">Envoyer à mon assureur</button><div id="accout3"></div></div>`}
+   next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF${full?'':`. Dès que ${qui} aura signé, envoyez-lui le constat complet`}.</p><button class="btn" type="button" data-acc="send">Revoir la déclaration</button><div id="accout3"></div></div>`
+    :`<div class="card yel"><h3>Prochaine étape</h3><p>${late?`Le délai de 5 jours ouvrés est passé depuis le ${frL(lim)} : déclarez le sinistre à votre assureur dès que possible.`:`Déclarez le sinistre à votre assureur avant le ${frL(lim)} (5 jours ouvrés).`} Nous préparons le courrier avec vos dommages, et le constat est joint au PDF.${full?'':`</p><p>L’idéal est d’envoyer le constat rempli et signé par les deux. Mais si ${qui} n’a pas encore signé, n’attendez pas : envoyez la déclaration dans le délai, le constat complet suivra.`}</p><button class="btn pri" type="button" data-acc="send">Préparer la déclaration à mon assureur</button><div id="accout3"></div></div>`}
   $('#ttl').textContent=dt?'Dégât du '+frL(dt):'Dégât des eaux';$('#sub').textContent=adr(z);document.title=$('#ttl').textContent;
   C().innerHTML=top('Mes dégâts des eaux','hist')+`<div class="card">${st}${btn?`<div class="stack">${btn}</div>`:''}<div id="accout"></div></div>
    <div class="card"><h3>Documents</h3>${docs||'<p>Aucun document.</p>'}<div id="accout2"></div></div>${next}`;
@@ -1592,6 +1609,12 @@ const Acc=(()=>{
    if(scr==='detail'){drawDetail();say(msg,0,'accout3')}}
   catch(e){say(cancelled(e)?'Envoi annulé.':'Impossible de terminer : '+emsg(e),!cancelled(e),'accout3')}
  }
+ /* Déclaration à l'assureur pour un dossier du compte : pré-remplie avec son constat, qui sera joint au PDF */
+ function declFor(z){const c=z&&z.constat;if(!c)return;const P=c._route==='moi'?'B':'A';
+  showView('form');setMode('decl');constatSrc=c;
+  try{if(!clean1(d.nom)||clean1(d.nom)!==clean1(c[P+'_nom'])){prefill(P);assFrom(P)}else prefill(P,true)}finally{constatSrc=null}
+  if(isLocal(z))delete d._constat;else d._constat=c;d.constat='oui';d._dz=z.id;save();
+  cur=0;document.title=M().title;render();window.scrollTo({top:0})}
  /* Reprendre un dossier du compte sur ce téléphone (le constat en cours, s'il est différent, est d'abord rangé dans le compte) */
  async function resume(step,sure){
   const z=DZ;if(!z||!z.constat)return;const other=constatStarted()&&docData('constat')._dossier!==z.id,here=isLocal(z);
@@ -1750,7 +1773,7 @@ const Acc=(()=>{
  }
  function pdecl(){const c=fin,P=finP;if(!c||!P)return;
   showView('form');setMode('decl');constatSrc=c;
-  try{prefill(P);assFrom(P);if(/^(syndic|gerant)$/.test(c[P+'_qual']||'')){d.qual='autre';d.ctype='autre';save()}}finally{constatSrc=null}
+  try{prefill(P);assFrom(P);if(/^(syndic|gerant)$/.test(c[P+'_qual']||'')){d.qual='autre';d.ctype='autre'}d._constat=c;d.constat='oui';save()}finally{constatSrc=null}
   cur=0;document.title=M().title;render();window.scrollTo({top:0})}
  async function finDoc(b,mail){
   try{say(await busy(b,'Génération…',async()=>{const ph=await sharedPhotos();return withDoc('constat',fin,ph,async()=>{const bytes=await buildPDF();
@@ -1789,8 +1812,8 @@ const Acc=(()=>{
    case'resume':await resume();break;case'resume2':await busy(b,'Un instant…',()=>resume(b.dataset.step===''?null:+b.dataset.step,true));break;
    case'photos':await photosScr();break;
    case'phedit':await resume(CSTEPS.findIndex(x=>x.photos));break;case'exphotos':await exPhotos(b);break;
-   case'todecl':openForm('decl');break;
-   case'pdf':await pdf(b.dataset.m,b);break;case'send':await send(b);break;
+   case'todecl':if(DZ&&DZ.constat)declFor(DZ);else openForm('decl');break;
+   case'pdf':await pdf(b.dataset.m,b);break;case'send':declFor(DZ);break;
    case'copy':await copy(b);break;case'nshare':await nshare();break;case'pdecl':pdecl();break;case'sharedone':if(shareFrom==='form'){if(DZ&&DZ.id===d._dossier)localDz=DZ;backToForm()}else await detail(DZ.id);break;
    case'export':await exportAll(b);break;
    case'chemail':say('Bientôt disponible. En attendant, téléchargez vos données puis créez un compte avec la nouvelle adresse.');break;
