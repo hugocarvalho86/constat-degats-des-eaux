@@ -1223,7 +1223,7 @@ document.addEventListener('click',e=>{
      Simulation : les fichiers sont dans une base IndexedDB à part, constatDDE_cloudsim_photos (localStorage est trop petit).
    - Suppression du compte : fonction Edge qui supprime les fichiers du bucket puis l'utilisateur (cascade sur dossiers, photos et share_links).
      Export : lecture des lignes du propriétaire, liste des photos comprise ; chaque fichier se télécharge ensuite un par un. */
-const Cloud=(()=>{
+const CloudSim=(()=>{
  const PX='constatDDE_cloudsim_',CODE='123456',BASE='https://vitfix.fr/app/#p=',JOURS=30,DELAI=300;
  const E=(code,message)=>Object.assign(new Error(message),{code});
  const rd=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(PX+k)||'null');return v==null?def:v}catch(e){return def}};
@@ -1349,6 +1349,129 @@ const Cloud=(()=>{
  };
  return api;
 })();
+
+/* Vrai serveur : projet Supabase « constat dégât des eaux » (Paris). Mêmes fonctions et mêmes réponses que la simulation ci-dessus.
+   La clé « publishable » est faite pour être dans l'appli : elle ne donne accès qu'à ce que les règles RLS autorisent.
+   Tout passe par fetch, sans bibliothèque. La session (jetons) est gardée sur l'appareil, clé constatDDE_session. */
+const CloudLive=(()=>{
+ const URL0='https://kaeufpvbiarcvpxkcocd.supabase.co',KEY0='sb_publishable_RnJgw3MohQte4e35NE7hTg_3zdCpMaY';
+ const BASE='https://vitfix.fr/app/#p=',SK='constatDDE_session',MAXPH=10,MAXOCT=4e6;
+ const E=(code,message)=>Object.assign(new Error(message),{code});
+ const MSG={introuvable:'Ce lien n’existe pas.',annule:'Ce lien a été annulé.',utilise:'Ce lien a déjà servi.',expire:'Ce lien a expiré.',
+  signature:'Signez avant d’envoyer.',trop_gros:'Les données envoyées sont trop lourdes.',limite:`Le compte garde ${MAXPH} photos par dossier au maximum.`,
+  auth:'Connectez-vous pour continuer.'};
+ const now=()=>new Date().toISOString();
+ const rnd=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return a};
+ const newId=()=>{const a=rnd(16);a[6]=a[6]&15|64;a[8]=a[8]&63|128;const h=[...a].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`};
+ const norm=e=>String(e||'').trim().toLowerCase();
+ const uid=v=>{v=String(v||'');if(!/^[0-9a-f-]{36}$/i.test(v))throw E('introuvable','Dossier introuvable.');return v};
+ const pid=v=>{v=String(v||'');if(!/^[0-9a-f-]{36}$/i.test(v))throw E('introuvable','Photo introuvable.');return v};
+ /* Session */
+ let S=null;try{S=JSON.parse(localStorage.getItem(SK)||'null')}catch(e){S=null}
+ const keep=s=>{S=s;try{s?localStorage.setItem(SK,JSON.stringify(s)):localStorage.removeItem(SK)}catch(e){}};
+ const userOf=u=>u?{id:u.id,email:u.email,createdAt:u.created_at||u.createdAt}:null;
+ const fromAuth=j=>({access:j.access_token,refresh:j.refresh_token,exp:j.expires_at?j.expires_at*1000:Date.now()+(j.expires_in||3600)*1000,user:userOf(j.user)});
+ /* Appel réseau : erreurs traduites en messages simples */
+ async function call(path,o={}){
+  let r;try{r=await fetch(URL0+path,{...o,headers:{apikey:KEY0,...(o.headers||{})}})}
+  catch(e){throw E('reseau','Pas de connexion au serveur. Vérifiez votre connexion internet et réessayez.')}
+  if(r.ok)return r;
+  let j={};try{j=await r.clone().json()}catch(e){}
+  const m=String(j.message||j.msg||j.error_description||j.error||''),c=String(j.code||j.error_code||'');
+  if(MSG[m])throw E(m,MSG[m]);
+  if(r.status===429||/rate|limit/i.test(c))throw E('trop','Trop de demandes. Attendez quelques minutes et réessayez.');
+  if(/otp_expired|expired/i.test(c+m))throw E('code','Ce code n’est pas le bon ou a expiré. Vérifiez ou demandez-en un nouveau.');
+  if(r.status===401||r.status===403){if(path.startsWith('/rest/')||path.startsWith('/storage/'))throw E('introuvable','Accès refusé.');throw E('auth',MSG.auth)}
+  if(c==='23505')throw E('existe','Déjà enregistré.');
+  throw E('serveur','Le serveur n’a pas pu répondre. Réessayez dans un instant.')}
+ const json=async(path,o)=>{const r=await call(path,o),t=await r.text();return t?JSON.parse(t):null};
+ /* Jeton de connexion valide (renouvelé si besoin) */
+ async function tok(){
+  if(!S)throw E('auth',MSG.auth);
+  if(S.exp-60e3>Date.now())return S.access;
+  try{keep({...fromAuth(await json('/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:S.refresh})})),user:S.user});return S.access}
+  catch(e){if(e.code==='reseau')throw e;keep(null);throw E('auth','Votre session a expiré. Reconnectez-vous.')}}
+ const auth=async(h={})=>({...h,Authorization:'Bearer '+await tok()});
+ const opt=async(h={})=>{try{return S?await auth(h):h}catch(e){return h}};
+ const rest=async(path,o={})=>json('/rest/v1/'+path,{...o,headers:await auth({'Content-Type':'application/json',...(o.headers||{})})});
+ const rpcA=async(fn,args,anon)=>json('/rest/v1/rpc/'+fn,{method:'POST',headers:anon?await opt({'Content-Type':'application/json'}):await auth({'Content-Type':'application/json'}),body:JSON.stringify(args||{})});
+ const me=()=>{if(!S||!S.user)throw E('auth',MSG.auth);return S.user};
+ /* Lignes du serveur → objets de l'appli */
+ const lstat=l=>l.revoked_at?'annule':l.used_at?'utilise':Date.parse(l.expires_at)<Date.now()?'expire':'actif';
+ const shareOf=ls=>{const l=(ls||[]).slice().sort((a,b)=>a.created_at<b.created_at?1:-1)[0];
+  return l?{token:l.token,url:BASE+l.token,role:l.role,party:l.party,createdAt:l.created_at,expiresAt:l.expires_at,usedAt:l.used_at||null,status:lstat(l)}:null};
+ const out=z=>{const u=me(),mine=z.owner_id===u.id;
+  return{id:z.id,ownerId:z.owner_id,guestId:z.guest_id||null,constat:z.constat||null,decl:z.decl||null,contest:z.contest||null,photos:z.photos||0,
+   sentAt:z.sent_at||null,partBAt:z.part_b_at||null,partBParty:z.part_b_party||null,createdAt:z.created_at,updatedAt:z.updated_at,mine,share:mine?shareOf(z.share_links):null}};
+ const SEL='select=*,share_links(token,role,party,created_at,expires_at,used_at,revoked_at)';
+ const pmeta=r=>({id:r.id,cap:r.caption||'',size:r.size,w:r.w||0,h:r.h||0,t:Number(r.t)||0,createdAt:r.created_at});
+ const path=r=>`${r.owner_id}/${r.dossier_id}/${r.id}.jpg`;
+ const prow=async(dossierId,photoId)=>{const r=(await rest(`photos?id=eq.${pid(photoId)}&dossier_id=eq.${uid(dossierId)}&select=*`))[0];if(!r)throw E('introuvable','Photo introuvable.');return r};
+ const api={
+  simulated:false,
+  newId,
+  maxPhotos:MAXPH,
+  async requestCode(email){const e=norm(email);if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e))throw E('email','Cette adresse e-mail ne semble pas correcte.');
+   await json('/auth/v1/otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:e,create_user:true})});
+   return{email:e,expiresAt:new Date(Date.now()+36e5).toISOString()}},
+  async verifyCode(email,code){const e=norm(email),c=String(code||'').replace(/\s/g,'');
+   if(!/^\d{6,10}$/.test(c))throw E('code','Ce code n’est pas le bon. Vérifiez et réessayez.');
+   let j;try{j=await json('/auth/v1/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'email',email:e,token:c})})}
+   catch(x){if(x.code==='reseau'||x.code==='trop')throw x;throw E('code','Ce code n’est pas le bon ou a expiré. Vérifiez ou demandez-en un nouveau.')}
+   const s=fromAuth(j);keep(s);return{user:s.user,isNew:Date.now()-Date.parse(s.user.createdAt||0)<10*60e3}},
+  currentUser(){return Promise.resolve(S&&S.user?{...S.user}:null)},
+  async signOut(){try{if(S)await call('/auth/v1/logout',{method:'POST',headers:await auth()})}catch(e){}keep(null);return true},
+  /* Efface d'abord les fichiers photos du compte, puis le compte (dossiers, photos et liens suivent par cascade) */
+  async deleteAccount(){const u=me(),rows=await rest(`photos?owner_id=eq.${u.id}&select=id,dossier_id,owner_id`);
+   for(let i=0;i<rows.length;i+=100)await call('/storage/v1/object/photos',{method:'DELETE',headers:await auth({'Content-Type':'application/json'}),body:JSON.stringify({prefixes:rows.slice(i,i+100).map(path)})});
+   await rpcA('delete_my_account');keep(null);return true},
+  async exportData(){const u=me(),ds=(await rest(`dossiers?owner_id=eq.${u.id}&select=*&order=created_at`))||[],
+    ls=(await rest(`share_links?owner_id=eq.${u.id}&select=*&order=created_at`))||[],ph=(await rest(`photos?owner_id=eq.${u.id}&select=*&order=t`))||[];
+   const data={exporteLe:now(),compte:{email:u.email,creeLe:u.createdAt},dossiers:ds.map(z=>{const o=out(z);delete o.share;delete o.mine;return o}),
+    liensDePartage:ls.map(l=>({token:l.token,dossierId:l.dossier_id,role:l.role,party:l.party,createdAt:l.created_at,expiresAt:l.expires_at,revokedAt:l.revoked_at,usedAt:l.used_at})),photos:[]};
+   const n={};for(const r of ph){n[r.dossier_id]=(n[r.dossier_id]||0)+1;
+    data.photos.push({dossier:r.dossier_id,id:r.id,nom:`photo_${r.dossier_id.slice(0,8)}_${n[r.dossier_id]}.jpg`,legende:r.caption||'',taille:r.size,largeur:r.w||0,hauteur:r.h||0,ajouteeLe:r.created_at})}
+   return data},
+  async listDossiers(){me();return((await rest(`dossiers?${SEL}&order=updated_at.desc`))||[]).map(out)},
+  async getDossier(id){me();const z=(await rest(`dossiers?id=eq.${uid(id)}&${SEL}`))[0];if(!z)throw E('introuvable','Dossier introuvable.');return out(z)},
+  /* Met à jour le dossier s'il est à moi, sinon le crée ; seuls constat, decl, contest et sentAt viennent de l'appli */
+  async saveDossier(dz){me();const body={constat:dz.constat||null,decl:dz.decl||null,contest:dz.contest||null,sent_at:dz.sentAt||null},H={Prefer:'return=representation'};
+   if(dz.id&&/^[0-9a-f-]{36}$/i.test(dz.id)){const r=await rest(`dossiers?id=eq.${dz.id}`,{method:'PATCH',headers:H,body:JSON.stringify(body)});
+    if(r&&r[0])return api.getDossier(dz.id);
+    try{await rest('dossiers',{method:'POST',headers:H,body:JSON.stringify({id:dz.id,...body})});return api.getDossier(dz.id)}catch(e){if(e.code!=='existe')throw e}}
+   const id=newId();await rest('dossiers',{method:'POST',headers:H,body:JSON.stringify({id,...body})});return api.getDossier(id)},
+  /* Photo : la ligne d'abord (le serveur refuse au-delà de 10), puis le fichier ; si le fichier échoue, la ligne est retirée */
+  async uploadPhoto(dossierId,blob,cap,meta){const u=me();uid(dossierId);
+   if(!(blob instanceof Blob)||blob.type!=='image/jpeg')throw E('photo','Cette photo n’est pas au bon format.');
+   if(blob.size>MAXOCT)throw E('photo','Cette photo est trop lourde pour être gardée dans le compte.');
+   const m=meta||{},id=newId(),row={id,dossier_id:dossierId,caption:String(cap||'').slice(0,200),size:blob.size,w:Math.round(+m.w||0),h:Math.round(+m.h||0),t:Math.round(+m.t||Date.now())};
+   const r=(await rest('photos',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(row)}))[0];
+   try{await call('/storage/v1/object/photos/'+path(r),{method:'POST',headers:await auth({'Content-Type':'image/jpeg','x-upsert':'false'}),body:blob})}
+   catch(e){try{await rest(`photos?id=eq.${id}`,{method:'DELETE'})}catch(x){}throw e}
+   return pmeta(r)},
+  async setPhotoCaption(dossierId,photoId,cap){const r=await rest(`photos?id=eq.${pid(photoId)}&dossier_id=eq.${uid(dossierId)}`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({caption:String(cap||'').slice(0,200)})});
+   if(!r||!r[0])throw E('introuvable','Photo introuvable.');return pmeta(r[0])},
+  async listPhotos(dossierId){me();return((await rest(`photos?dossier_id=eq.${uid(dossierId)}&select=*&order=t`))||[]).map(pmeta)},
+  async getPhoto(dossierId,photoId){const r=await prow(dossierId,photoId);
+   const b=await(await call('/storage/v1/object/authenticated/photos/'+path(r),{headers:await auth()})).blob();return b.type==='image/jpeg'?b:new Blob([b],{type:'image/jpeg'})},
+  async deletePhoto(dossierId,photoId){const r=await prow(dossierId,photoId);
+   await call('/storage/v1/object/photos',{method:'DELETE',headers:await auth({'Content-Type':'application/json'}),body:JSON.stringify({prefixes:[path(r)]})});
+   await rest(`photos?id=eq.${r.id}`,{method:'DELETE'});return true},
+  async importLocal(){const r=[];for(const it of localDossiers())r.push(await api.saveDossier(it));return r},
+  async createShareLink(dossierId,role){const l=await rpcA('create_share_link',{p_dossier:uid(dossierId),p_role:role==='syndic'?'syndic':'voisin'});
+   return{token:l.token,url:BASE+l.token,expiresAt:l.expiresAt,createdAt:l.createdAt,role:l.role,party:l.party}},
+  async revokeShareLink(token){const r=await rest(`share_links?token=eq.${encodeURIComponent(String(token||''))}&revoked_at=is.null`,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({revoked_at:now()})});return true},
+  /* Sans compte (la clé publique suffit) */
+  async openShareLink(token){const t=String(token||'');if(!/^[\w-]{16,64}$/.test(t))throw E('introuvable',MSG.introuvable);return rpcA('open_share_link',{p_token:t},true)},
+  async getSharedPhoto(token,photoId){const r=await call(`/functions/v1/photo-partagee?token=${encodeURIComponent(String(token||''))}&id=${pid(photoId)}`,{headers:await opt()});
+   const b=await r.blob();return b.type==='image/jpeg'?b:new Blob([b],{type:'image/jpeg'})},
+  async submitPartB(token,data,signature){if(!signature||!signature.sig)throw E('signature',MSG.signature);
+   return rpcA('submit_part_b',{p_token:String(token||''),p_data:data||{},p_sig:signature.sig,p_sigt:signature.sigt||signature.sig},true)}
+ };
+ return api;
+})();
+/* Mode essai (serveur simulé, code 123456) : démo et tests seulement, avec window.CDDE_SIM=true ou ?sim=1 dans l'adresse */
+const Cloud=(()=>{try{return window.CDDE_SIM===true||/[?&]sim=1(&|$)/.test(location.search)}catch(e){return false}})()?CloudSim:CloudLive;
 
 /* Documents gardés sur le téléphone (inchangés pour qui n'a pas de compte) et leur lien avec un dossier du compte (_dossier) */
 const PRIVACY='https://vitfix.fr/confidentialite.html';
