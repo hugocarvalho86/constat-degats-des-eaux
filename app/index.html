@@ -88,6 +88,7 @@ nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .modes button{min-height:46px;border:0;border-radius:10px;background:none;font:600 13px/1.2 Inter,sans-serif;color:var(--mute);cursor:pointer;padding:6px 8px}
 .modes button.on{background:var(--blue);color:var(--on)}
 .note{padding:12px 14px;border-radius:12px;background:var(--blue2);border:1px solid var(--ybord);font-size:14px;margin:0 0 16px}
+.note.shared{background:#e1f3e3;border-color:#b9dfbf;color:#123d18}
 .note p{margin:0 0 8px}.note p:last-child{margin:0}
 select{width:100%;font:16px Inter,sans-serif;padding:11px 10px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);min-height:48px}
 .items{display:grid;gap:12px;margin-bottom:12px}
@@ -587,7 +588,7 @@ function render(){
  if(view==='form'){const fin=mode==='constat'&&s.recap&&(d.sigA||d.sigB);$('#ttl').textContent=fin?'Constat terminé':M().title;$('#sub').textContent=fin?(d.sigA&&d.sigB?'Signé par les deux parties':'Signé par vous — en attente de l’autre partie'):M().sub}
  $('#acccards').innerHTML=Acc.cards();document.querySelector('#form .tohome').textContent=mode==='part'?'‹ Retour':'‹ Accueil';
  let h=`<p class="kicker">Étape ${cur+1} sur ${STEPS.length}</p><h2>${s.p?`<span class="tag ${s.p}">${s.p}</span>`:''}${esc(s.t.replace(/^Partie [AB] — /,s.p?'':'$&'))}</h2>`;
- if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p)){const R=mode==='constat'&&ROUTES[d._route];h+=`<p class="kicker" style="margin:-8px 0 14px">${mode==='part'?`Votre partie (partie ${s.p}). L’autre partie du constat est déjà remplie.`:R&&R.A?`Partie ${s.p} : ${R[s.p].toLowerCase()}.${s.p==='B'&&R.Bnote?' '+R.Bnote.replace('{n}',skipB()+1):''}`:s.p==='A'?'Partie A : la personne qui a subi les dégâts.':'Partie B : la personne chez qui se trouve la fuite (voisin, syndic…). Laissez vide si elle n’existe pas.'}</p>`;if(s.p==='B'&&R&&R.Bnote)h+=`<div class="note" style="margin:0 0 14px"><p style="margin:0 0 10px"><b>Le syndic peut remplir sa partie lui-même.</b> Partagez-lui le lien : il remplira la partie B et signera directement sur l’application.</p><button type="button" class="btn pri" data-acc="rshare" style="width:100%">Partager le constat avec mon syndic pour qu’il le remplisse</button></div><button type="button" class="quick" data-go="${skipB()}">Passer à l’étape ${skipB()+1} : ${esc(STEPS[skipB()].t)}</button>`}
+ if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p)){const R=mode==='constat'&&ROUTES[d._route];h+=`<p class="kicker" style="margin:-8px 0 14px">${mode==='part'?`Votre partie (partie ${s.p}). L’autre partie du constat est déjà remplie.`:R&&R.A?`Partie ${s.p} : ${R[s.p].toLowerCase()}.${s.p==='B'&&R.Bnote?' '+R.Bnote.replace('{n}',skipB()+1):''}`:s.p==='A'?'Partie A : la personne qui a subi les dégâts.':'Partie B : la personne chez qui se trouve la fuite (voisin, syndic…). Laissez vide si elle n’existe pas.'}</p>`;if(s.p==='B'&&R&&R.Bnote){const sh=Acc.shareInfo();h+=sh?`<div class="note shared" role="status" style="margin:0 0 14px"><p style="margin:0 0 6px"><b>✓ Lien déjà envoyé ${sh.role==='syndic'?'au syndic':'au voisin'} le ${new Date(sh.createdAt).toLocaleDateString('fr-FR')}.</b></p><p style="margin:0 0 10px">En attente de sa réponse : dès qu’il aura rempli et signé la partie B, elle apparaîtra ici. Lien valable jusqu’au ${new Date(sh.expiresAt).toLocaleDateString('fr-FR')}.</p><button type="button" class="btn" data-acc="rshare" style="width:100%">Voir ou renvoyer le lien</button></div>`:`<div class="note" style="margin:0 0 14px"><p style="margin:0 0 10px"><b>Le syndic peut remplir sa partie lui-même.</b> Partagez-lui le lien : il remplira la partie B et signera directement sur l’application.</p><button type="button" class="btn pri" data-acc="rshare" style="width:100%">Partager le constat avec mon syndic pour qu’il le remplisse</button></div>`;h+=`<button type="button" class="quick" data-go="${skipB()}">Passer à l’étape ${skipB()+1} : ${esc(STEPS[skipB()].t)}</button>`}}
  if(s.quick){let m=null;try{m=JSON.parse(localStorage.getItem('constatDDE_syndic')||'null')}catch(e){}h+=m?`<button type="button" class="quick" id="syn-use">Reprendre : ${esc(m.syndic.split('\n')[0])}</button> <button type="button" class="link" id="syn-save">Mémoriser ce syndic</button>`:`<button type="button" class="link" id="syn-save">Mémoriser ce syndic pour les prochains constats</button>`}
  if(s.delai)h+=prefillHTML();
  if(s.assfrom){if(!clean1(d.assureur))assFromMe();h+=assFromHTML()+assDiag()}
@@ -1758,7 +1759,7 @@ const Acc=(()=>{
   if(scr==='code')return emailScr();
   if(scr==='detail'||scr==='compte')return hist();
   if(scr==='photos')return detail(DZ.id);
-  if(scr==='share')return shareFrom==='form'?backToForm():detail(DZ.id);
+  if(scr==='share'){if(shareFrom==='form'&&DZ&&DZ.id===d._dossier)localDz=DZ;return shareFrom==='form'?backToForm():detail(DZ.id)}
   return home();
  }
  async function act(a,b){
@@ -1783,7 +1784,7 @@ const Acc=(()=>{
    case'phedit':await resume(CSTEPS.findIndex(x=>x.photos));break;case'exphotos':await exPhotos(b);break;
    case'todecl':openForm('decl');break;
    case'pdf':await pdf(b.dataset.m,b);break;case'send':await send(b);break;
-   case'copy':await copy(b);break;case'nshare':await nshare();break;case'sharedone':await detail(DZ.id);break;
+   case'copy':await copy(b);break;case'nshare':await nshare();break;case'sharedone':if(shareFrom==='form'){if(DZ&&DZ.id===d._dossier)localDz=DZ;backToForm()}else await detail(DZ.id);break;
    case'export':await exportAll(b);break;
    case'chemail':say('Bientôt disponible. En attendant, téléchargez vos données puis créez un compte avec la nouvelle adresse.');break;
    case'logout':await busy(b,'Déconnexion…',()=>Cloud.signOut());user=null;localDz=null;list=null;flash='Vous êtes déconnecté. Vos constats restent dans votre compte.';home();break;
@@ -1804,7 +1805,17 @@ const Acc=(()=>{
   if(e.target.id==='accdelok'){const b=C().querySelector('[data-acc="del2"]');if(b)b.disabled=!e.target.checked}});
  async function init(){try{user=await Cloud.currentUser()}catch(e){user=null}homeCard();if(view==='form'){drawCards();if(STEPS[cur].recap)onRecap()}}
  const flush=()=>enqueue(()=>push('constat')).catch(()=>{});
- return {init,homeCard,cards,onRecap,sent,flush,photoGone,openLink,landing,psend,back,get user(){return user}};
+ /* Étape partie B : le lien est-il déjà envoyé ? */
+ let dzLoading=false;
+ function shareInfo(){
+  if(!user||!d._dossier)return null;
+  if(!localDz||localDz.id!==d._dossier){
+   if(!dzLoading){dzLoading=true;const id=d._dossier;
+    enqueue(async()=>{const z=await Cloud.getDossier(id);if(z&&z.mine)localDz=z}).catch(()=>{}).then(()=>{dzLoading=false;
+     if(localDz&&localDz.id===d._dossier&&localDz.share&&localDz.share.status==='actif'&&view==='form'&&STEPS[cur]&&STEPS[cur].p==='B')keepScroll()})}
+   return null}
+  const s=localDz.share;return s&&s.status==='actif'?s:null}
+ return {init,homeCard,cards,onRecap,sent,flush,photoGone,openLink,landing,psend,back,shareInfo,get user(){return user}};
 })();
 
 setMode(mode);
