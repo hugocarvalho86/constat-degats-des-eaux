@@ -470,7 +470,8 @@ function delaiHTML(){
  return `<div class="note"><p><b>Délai pour déclarer : ${dl}</b>${t==='catnat'?'':' à partir du moment où vous découvrez le sinistre'}. C’est le minimum prévu par la loi : votre contrat peut prévoir plus long.</p>${extra}<p style="font-size:13px">En cas de retard, l’assureur ne peut refuser de vous indemniser que s’il prouve que ce retard lui a causé un préjudice (art. L113-2 du Code des assurances).</p></div>`;
 }
 /* Reprise des informations d'un constat amiable en cours */
-function constatData(){try{return JSON.parse(lsGet('constatDDE_v1')||'{}')}catch(e){return{}}}
+let constatSrc=null; /* constat reçu par lien (partie B) : source ponctuelle de la déclaration */
+function constatData(){if(constatSrc)return constatSrc;try{return JSON.parse(lsGet('constatDDE_v1')||'{}')}catch(e){return{}}}
 function prefillHTML(){
  const c=constatData(),ps=['A','B'].filter(P=>clean1(c[P+'_nom']));if(!ps.length)return '';
  return `<div class="note"><p>Vous avez un constat amiable dégât des eaux${c.date?' du '+fr(c.date):''}. Reprendre ses informations ?</p>${ps.map(P=>`<button type="button" class="btn" data-prefill="${P}" style="width:100%;margin-top:8px;min-height:48px">Je suis ${esc(clean1(c[P+'_nom']))} (partie ${P})</button>`).join('')}</div>`;
@@ -1348,7 +1349,7 @@ async function withDoc(m,data,ph,fn){
 
 /* ---------- Écrans : connexion, historique, détail, partage, côté voisin, mon compte ---------- */
 const Acc=(()=>{
- let user,list=null,DZ=null,expPh=[],sph=[],sphEnd=false,sphP=Promise.resolve(),scr='',after=null,origin='home',kind='signup',em='',wantImp=true,info=null,tok=null,fin=null,shareFrom='detail',localDz=null,flash='',chain=Promise.resolve();
+ let user,list=null,DZ=null,expPh=[],sph=[],sphEnd=false,sphP=Promise.resolve(),scr='',after=null,origin='home',kind='signup',em='',wantImp=true,info=null,tok=null,fin=null,shareFrom='detail',localDz=null,finP='',flash='',chain=Promise.resolve();
  const C=()=>$('#cloud');
  const frT=t=>t?new Date(t).toLocaleDateString('fr-FR'):'';
  const frL=iso=>{if(!iso)return'';const t=new Date(iso+'T12:00:00');return isNaN(t)?'':t.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})};
@@ -1684,7 +1685,7 @@ const Acc=(()=>{
  const partDraft=()=>{try{return JSON.parse(lsGet('constatDDE_part')||'{}')||{}}catch(e){return{}}};
  async function openLink(t){
   tok=t;info=null;sph=[];sphEnd=false;freeUrls();page('load','Constat dégât des eaux','Ouverture du lien…','<div class="card"><p>Ouverture du constat…</p></div>');
-  const dr=partDraft();if(dr._token===t&&dr._done&&dr._final){doneScr(dr._final);return}
+  const dr=partDraft();if(dr._token===t&&dr._done&&dr._final){doneScr(dr._final,dr._P);return}
   try{info=await Cloud.openShareLink(t);if(tok===t){sphP=loadShared(t,info.photos||[]);landing()}}catch(e){if(tok===t)errScr(e)}
  }
  /* Photos du sinistre montrées à la partie invitée (lecture seule) : lues par le jeton, gardées sur son appareil pour son PDF final */
@@ -1734,17 +1735,22 @@ const Acc=(()=>{
   try{const data={};for(const k in d)if(k.startsWith(P+'_'))data[k]=d[k];
    await sphP.catch(()=>{});
    const r=await Cloud.submitPartB(d._token,data,{sig:d['sig'+P],sigt:d['sigt'+P]});
-   if(mode==='part'){d._done=1;d._final=r.constat;save()}doneScr(r.constat)}
+   if(mode==='part'){d._done=1;d._final=r.constat;save()}doneScr(r.constat,P)}
   catch(e){if(['expire','annule','utilise','introuvable'].includes(e.code))errScr(e);else er('Envoi impossible : '+emsg(e))}
   finally{nb.disabled=false;nb.textContent=M().newLabel}
  }
- function doneScr(c){
-  fin={...c,mailto:''};const two=c.sigA&&c.sigB;
+ function doneScr(c,P){
+  fin={...c,mailto:''};finP=P||'';const two=c.sigA&&c.sigB;
   page('done','Constat signé',two?'Signé par les deux parties':'Votre partie est signée',`<div class="card yel"><h3>Merci, votre partie est enregistrée</h3>
    <p>${two?'Le constat est maintenant signé par les deux parties.':'Votre partie est signée ; l’autre partie n’a pas encore signé.'} Gardez le PDF et envoyez-le à votre assureur dans les 5 jours ouvrés.${sph.length?` Le PDF contient ${sph.length>1?'les '+sph.length+' photos':'la photo'} du sinistre en annexe.`:''}</p>
    <div class="stack"><button class="btn pri" type="button" data-acc="fpdf">Enregistrer le PDF</button><button class="btn" type="button" data-acc="fmail">Envoyer par mail (PDF joint)</button></div><div id="accout"></div></div>
+   ${finP?`<div class="card"><h3>Déclarer le sinistre à votre assureur</h3><p>Chacun déclare le dégât des eaux à son propre assureur, dans les 5 jours ouvrés${/^(syndic|gerant)$/.test(c[finP+'_qual']||'')?' (pour le syndic : l’assureur de l’immeuble)':''}. Le courrier reprend les informations du constat : vous n’avez qu’à vérifier et compléter.</p><button class="btn pri" type="button" data-acc="pdecl">Préparer ma déclaration à mon assureur</button></div>`:''}
    <button class="btn" type="button" data-acc="home">Aller à l’accueil de l’appli</button>`);
  }
+ function pdecl(){const c=fin,P=finP;if(!c||!P)return;
+  showView('form');setMode('decl');constatSrc=c;
+  try{prefill(P);assFrom(P);if(/^(syndic|gerant)$/.test(c[P+'_qual']||'')){d.qual='autre';d.ctype='autre';save()}}finally{constatSrc=null}
+  cur=0;document.title=M().title;render();window.scrollTo({top:0})}
  async function finDoc(b,mail){
   try{say(await busy(b,'Génération…',async()=>{const ph=await sharedPhotos();return withDoc('constat',fin,ph,async()=>{const bytes=await buildPDF();
     if(mail)return sendMail(bytes,M().mail(),'Envoyer le constat');
@@ -1784,7 +1790,7 @@ const Acc=(()=>{
    case'phedit':await resume(CSTEPS.findIndex(x=>x.photos));break;case'exphotos':await exPhotos(b);break;
    case'todecl':openForm('decl');break;
    case'pdf':await pdf(b.dataset.m,b);break;case'send':await send(b);break;
-   case'copy':await copy(b);break;case'nshare':await nshare();break;case'sharedone':if(shareFrom==='form'){if(DZ&&DZ.id===d._dossier)localDz=DZ;backToForm()}else await detail(DZ.id);break;
+   case'copy':await copy(b);break;case'nshare':await nshare();break;case'pdecl':pdecl();break;case'sharedone':if(shareFrom==='form'){if(DZ&&DZ.id===d._dossier)localDz=DZ;backToForm()}else await detail(DZ.id);break;
    case'export':await exportAll(b);break;
    case'chemail':say('Bientôt disponible. En attendant, téléchargez vos données puis créez un compte avec la nouvelle adresse.');break;
    case'logout':await busy(b,'Déconnexion…',()=>Cloud.signOut());user=null;localDz=null;list=null;flash='Vous êtes déconnecté. Vos constats restent dans votre compte.';home();break;
