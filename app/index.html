@@ -1402,7 +1402,8 @@ const Acc=(()=>{
   if(s&&s.status==='actif')return{k:'wait',t:'En attente '+roleDu(s.role)};
   if(z.sentAt)return{k:'sent',t:'Envoyé à l’assureur'};
   if(!z.constat)return{k:'sent',t:z.contest?'Contestation préparée':'Déclaration préparée'};
-  if(c.sigA||c.sigB)return{k:'sent',t:'Signé par vous'};
+  if(c.sigA||c.sigB){const me=c._route==='moi'?'B':'A',oth=c._route==='syndic'?'le syndic':c._route==='voisin'||c._route==='moi'?'le voisin':'l’autre partie';
+   return c['sig'+me]?{k:'sent',t:'Signé par vous'}:{k:'wait',t:'Signé par '+oth+' : à signer par vous'}}
   return{k:'sent',t:'Brouillon'}}
  function cause(z){const c=z.constat;if(!c)return z.decl?tlab(z.decl):z.contest?tlab(z.contest):'';
   const INF={toiture:'la toiture',terrasse:'la terrasse',facade:'la façade',fenetre:'une fenêtre',joint:'un joint d’étanchéité'};
