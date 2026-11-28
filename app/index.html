@@ -1045,7 +1045,8 @@ async function sendMail(bytes,parts,dialog){
  const {to,subj,body}=parts;
  if(NATIVE){const pre=await nativeSend(bytes,parts,dialog);return pre||!to?'Mail prêt avec le PDF joint : vérifiez puis envoyez.':'Dans le mail, saisissez le destinataire : <b>'+esc(to)+'</b>'}
  const file=new File([bytes],fname(),{type:'application/pdf'});
- if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({title:subj,text:body,files:[file]});return to?'Destinataire à saisir : <b>'+esc(to)+'</b>':'Partagé.'}
+ /* Partage du téléphone ; s'il est refusé (navigateur, aperçu…), on passe au PDF téléchargé + mail */
+ if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({title:subj,text:body,files:[file]});return to?'Destinataire à saisir : <b>'+esc(to)+'</b>':'Partagé.'}catch(e){if(cancelled(e)||(e&&e.name==='AbortError'))throw e}}
  webDownload(bytes);
  const href=`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
  location.href=href;
