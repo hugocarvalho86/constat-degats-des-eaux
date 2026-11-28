@@ -111,6 +111,47 @@ textarea.big{min-height:170px}
 .qui .A{background:var(--a)}.qui .B{background:var(--b)}
 .qui b{display:block;font:700 15px Archivo,sans-serif;margin-bottom:2px}
 .tohome{margin:-6px 0 6px -8px}
+/* Comptes facultatifs, historique, lien de partage */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.card h3{font:700 18px/1.25 Archivo,sans-serif;margin:0 0 8px}
+.card p{margin:0 0 12px;font-size:15px}
+.card>p:last-child{margin-bottom:0}
+.card.yel{background:var(--blue2);border-color:var(--ybord)}
+.card.recapA{border-top:6px solid var(--aink)}.card.recapB{border-top:6px solid var(--bink)}
+.card .btn,#cloud .btn{width:100%;padding:0 14px}
+a.btn{display:flex;align-items:center;justify-content:center;text-decoration:none;text-align:center}
+#cloud a,.card a{color:inherit}
+.stack{display:grid;gap:10px}
+.duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.accrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px}
+.accrow b{font:700 17px Archivo,sans-serif}
+.accrow div div{font-size:14px;color:var(--mute)}
+.accrow .btn{flex:0 0 auto;width:auto;padding:0 18px}
+.acctop{display:flex;justify-content:space-between;align-items:center;margin:-6px -8px 6px}
+.dlist{display:grid;gap:10px}
+.dos{display:grid;gap:4px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;color:var(--ink);font:inherit;cursor:pointer}
+.dos:hover,.dos:active{border-color:var(--blue)}
+.dos b{font:700 16px Archivo,sans-serif}
+.dos span{font-size:14px;color:var(--mute)}
+.pill{display:inline-block;justify-self:start;font:600 13px Inter,sans-serif;padding:4px 10px;border-radius:999px;margin-top:4px}
+.p-wait{background:light-dark(#fff3c4,#4a3f0a);color:light-dark(#6b5600,#ffe98a)}.p-ok{background:light-dark(#e1f3e3,#17381c);color:light-dark(#1e6b2a,#9be0a6)}.p-sent{background:light-dark(#ececea,#33332e);color:light-dark(#333,#ddd)}
+.code{position:relative;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+.code div{height:56px;border:1.5px solid var(--line);border-radius:10px;display:grid;place-items:center;font:700 24px Archivo,sans-serif;background:var(--bg)}
+.code div.on{border-color:var(--ink)}
+.code:focus-within div.cur{outline:3px solid var(--blue);outline-offset:1px;border-color:var(--ink)}
+.code input{position:absolute;inset:0;width:100%;height:100%;min-height:0;opacity:0;border:0;padding:0;font-size:16px;cursor:text}
+.doc{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);font-size:15px}
+.doc:first-of-type{border-top:0}
+.doc .link{padding:4px 0;min-height:32px;font-size:15px;flex:0 0 auto}
+.linkbox{font:500 14px Inter,sans-serif;background:var(--bg);border:1.5px dashed var(--line);border-radius:10px;padding:12px;overflow-wrap:anywhere;margin-bottom:12px;user-select:all}
+.share{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.btn.danger{color:light-dark(#b3261e,#ff8a80);border-color:light-dark(#f0c4c0,#6b2a26)}
+.small{font-size:13px;color:var(--mute);margin:8px 0 0}
+.small .link{font-size:13px;padding:8px 2px}
+.btn+.small,.stack+.small{margin-top:12px}
+.opt.wide span{border-radius:12px}
+.opt.wide input:checked+span::before{content:'✓'}
+.simnote{font-size:12.5px;color:var(--mute);text-align:center;margin:12px 0 0}
 @media(prefers-reduced-motion:reduce){.prog i{transition:none}}
 </style>
 <link rel="manifest" href="manifest.webmanifest">
@@ -167,6 +208,7 @@ setTimeout(function(){if(tcf||ls(KG))return;var c=get();if(c===true)load();else 
 </header>
 <main>
  <section id="home" hidden>
+  <div id="acchome"></div>
   <div class="step">
    <p class="kicker">En 5 étapes</p>
    <h2>Les étapes principales</h2>
@@ -191,10 +233,12 @@ setTimeout(function(){if(tcf||ls(KG))return;var c=get();if(c===true)load();else 
   </div>
  </section>
  <section id="guide" hidden></section>
+ <section id="cloud" hidden></section>
  <div id="form">
   <button type="button" class="link tohome" data-home="1">‹ Accueil</button>
   <div class="modes" id="modes" role="tablist" hidden aria-label="Document à remplir"><button type="button" role="tab" data-mode="constat">Constat amiable</button><button type="button" role="tab" data-mode="decl">Déclaration de sinistre</button><button type="button" role="tab" data-mode="contest">Contester l’indemnisation</button></div>
   <div class="steps" id="dots"></div>
+  <div id="acccards"></div>
   <form class="step" id="step" autocomplete="on"></form>
  </div>
 </main>
@@ -469,7 +513,9 @@ function assFromMe(){
  const Q=clean1(c[P+'_assureur'])?P:['A','B'].find(x=>clean1(c[x+'_assureur']));
  if(Q){assFrom(Q);return true}return false;
 }
-const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre'),contest:mkIDB('contestIndem')};
+const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre'),contest:mkIDB('contestIndem'),
+ /* Partie remplie depuis un lien de partage : pas de photos */
+ part:{all:async()=>[],put:async()=>{},del:async()=>{},clear:async()=>{}}};
 let IDB=IDBS.constat;
 const purl=p=>{if(!purls.has(p.id))purls.set(p.id,URL.createObjectURL(p.blob));return purls.get(p.id)};
 async function shrink(file){
@@ -515,7 +561,7 @@ function fieldHTML(f){
  else inner=`<input id="${id}" data-k="${f.k}" type="${f.ty}" value="${esc(v)}" ${f.ty==='email'?'inputmode="email"':''}${f.ty==='tel'?'inputmode="tel"':''}${f.ac?` autocomplete="${f.ac}"`:''}>`;
  const lab=(f.ty==='radio'||f.ty==='check')?`<span class="lab">${f.l}</span>`:`<label for="${id}">${f.l}</label>`;
  /* Adresse d'une partie : proposer l'adresse du sinistre */
- const same=mode==='constat'&&/^[AB]_adresse$/.test(f.k)&&clean1(d.adresse)?`<button type="button" class="quick" data-sameadr="${f.k}" style="display:block;margin:0 0 8px"${clean1(v)===clean1(d.adresse)?' hidden':''}>Même adresse que le sinistre</button>`:'';
+ const same=(mode==='constat'||mode==='part')&&/^[AB]_adresse$/.test(f.k)&&clean1(d.adresse)?`<button type="button" class="quick" data-sameadr="${f.k}" style="display:block;margin:0 0 8px"${clean1(v)===clean1(d.adresse)?' hidden':''}>Même adresse que le sinistre</button>`:'';
  return `<div class="f${f.sub?' sub':''}">${lab}${same}${inner}${f.h?`<small>${f.h}</small>`:''}</div>`;
 }
 
@@ -528,8 +574,11 @@ function render(){
  $('#bar').style.width=((cur+1)/STEPS.length*100)+'%';
  $('#dots').innerHTML=STEPS.map((x,i)=>`<button type="button" data-go="${i}" class="${i===cur?'on':i<cur?'done':''}" aria-label="Étape ${i+1} : ${esc(x.t)}">${i+1}</button>`).join('');
  const st=$('#step');st.className='step'+(s.p?' '+s.p:'');
+ /* Fin du constat : titre « Constat terminé » dès qu'une partie a signé, et cartes partage / compte au-dessus du récapitulatif */
+ if(view==='form'){const fin=mode==='constat'&&s.recap&&(d.sigA||d.sigB);$('#ttl').textContent=fin?'Constat terminé':M().title;$('#sub').textContent=fin?(d.sigA&&d.sigB?'Signé par les deux parties':'Signé par vous — en attente de l’autre partie'):M().sub}
+ $('#acccards').innerHTML=Acc.cards();document.querySelector('#form .tohome').textContent=mode==='part'?'‹ Retour':'‹ Accueil';
  let h=`<p class="kicker">Étape ${cur+1} sur ${STEPS.length}</p><h2>${s.p?`<span class="tag ${s.p}">${s.p}</span>`:''}${esc(s.t.replace(/^Partie [AB] — /,s.p?'':'$&'))}</h2>`;
- if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p)){const R=mode==='constat'&&ROUTES[d._route];h+=`<p class="kicker" style="margin:-8px 0 14px">${R&&R.A?`Partie ${s.p} : ${R[s.p].toLowerCase()}.${s.p==='B'&&R.Bnote?' '+R.Bnote.replace('{n}',skipB()+1):''}`:s.p==='A'?'Partie A : la personne qui a subi les dégâts.':'Partie B : la personne chez qui se trouve la fuite (voisin, syndic…). Laissez vide si elle n’existe pas.'}</p>`;if(s.p==='B'&&R&&R.Bnote)h+=`<button type="button" class="quick" data-go="${skipB()}">Passer à l’étape ${skipB()+1} : ${esc(STEPS[skipB()].t)}</button>`}
+ if(s.p&&cur===STEPS.findIndex(x=>x.p===s.p)){const R=mode==='constat'&&ROUTES[d._route];h+=`<p class="kicker" style="margin:-8px 0 14px">${mode==='part'?`Votre partie (partie ${s.p}). L’autre partie du constat est déjà remplie.`:R&&R.A?`Partie ${s.p} : ${R[s.p].toLowerCase()}.${s.p==='B'&&R.Bnote?' '+R.Bnote.replace('{n}',skipB()+1):''}`:s.p==='A'?'Partie A : la personne qui a subi les dégâts.':'Partie B : la personne chez qui se trouve la fuite (voisin, syndic…). Laissez vide si elle n’existe pas.'}</p>`;if(s.p==='B'&&R&&R.Bnote)h+=`<button type="button" class="quick" data-go="${skipB()}">Passer à l’étape ${skipB()+1} : ${esc(STEPS[skipB()].t)}</button>`}
  if(s.quick){let m=null;try{m=JSON.parse(localStorage.getItem('constatDDE_syndic')||'null')}catch(e){}h+=m?`<button type="button" class="quick" id="syn-use">Reprendre : ${esc(m.syndic.split('\n')[0])}</button> <button type="button" class="link" id="syn-save">Mémoriser ce syndic</button>`:`<button type="button" class="link" id="syn-save">Mémoriser ce syndic pour les prochains constats</button>`}
  if(s.delai)h+=prefillHTML();
  if(s.assfrom){if(!clean1(d.assureur))assFromMe();h+=assFromHTML()+assDiag()}
@@ -537,15 +586,16 @@ function render(){
  h+=s.fields.map(fieldHTML).join('');
  if(s.delai)h+=delaiHTML();
  if(s.items)h+=itemsHTML();
- if(s.sign)h+=s.sign.map(P=>`<div class="f"><span class="lab">${P==='D'?'Votre signature':`<span class="tag ${P}">${P}</span>Signature partie ${P}${mode==='constat'&&SIGLAB[d._route]?' : '+SIGLAB[d._route][P]:''}`}</span><canvas class="sig" id="sig${P}" data-p="${P}"></canvas><div class="sigbar"><span>Signez avec le doigt</span><button type="button" class="link" data-clear="${P}">Effacer</button></div></div>`).join('');
+ if(s.sign)h+=s.sign.map(P=>`<div class="f"><span class="lab">${P==='D'?'Votre signature':`<span class="tag ${P}">${P}</span>Signature partie ${P}${mode==='part'?' : ma signature':mode==='constat'&&SIGLAB[d._route]?' : '+SIGLAB[d._route][P]:''}`}</span><canvas class="sig" id="sig${P}" data-p="${P}"></canvas><div class="sigbar"><span>Signez avec le doigt</span><button type="button" class="link" data-clear="${P}">Effacer</button></div></div>`).join('');
  if(s.photos)h+=photosHTML();
  if(s.recap)h+=recapHTML();
+ if(s.partsend)h+=`<div class="recap">${recapGroups()}</div><p class="kicker" style="margin-top:14px">En envoyant, vos réponses et votre signature sont ajoutées au constat. Vous pourrez ensuite enregistrer le PDF.</p><div id="out"></div>`;
  st.innerHTML=h;
  $('#prev').disabled=cur===0;
  $('#next').textContent=cur===STEPS.length-1?M().newLabel:cur===STEPS.length-2?'Voir le récapitulatif':'Suivant';
  document.querySelectorAll('#modes [data-mode]').forEach(b=>{const on=b.dataset.mode===mode;b.classList.toggle('on',on);b.setAttribute('aria-selected',on)});
  if(s.sign)s.sign.forEach(setupSig);
- if(s.recap)bindRecap();
+ if(s.recap){bindRecap();Acc.onRecap()}
  window.scrollTo({top:0});
 }
 
@@ -556,13 +606,16 @@ function show(f){
  if(f.ty==='date')return fr(v);return v;
 }
 function fr(v){if(!v)return'';const[y,m,dd]=v.split('-');return `${dd}/${m}/${y}`}
-function recapHTML(){
- const groups=STEPS.slice(0,-1).map((s,i)=>{
+function recapGroups(){
+ return STEPS.slice(0,-1).map((s,i)=>{
   const rows=FLAT.filter(f=>f.step===i&&(!f.if||f.if(d))).map(f=>[f.l,show(f)]).filter(r=>r[1]);
   if(s.sign)s.sign.forEach(P=>rows.push([P==='D'?'Signature':'Signature '+P,d['sig'+P]?'Oui':'—']));
   if(s.items){const it=items();if(it.length)rows.push(['Biens',it.map(x=>`${clean1(x.des)||'Bien'}${num(x.val)?' : '+eur(num(x.val)):''}`).join(' ; ')],['Total estimé',eur(itemsTotal())])}
   if(s.photos&&photos.length)rows.push(['Photos',photos.length+' photo'+(photos.length>1?'s':'')+' en annexe du PDF']);
   return `<section><h3>${esc(s.t)}<button type="button" class="link" data-go="${i}">Modifier</button></h3>${rows.length?`<dl>${rows.map(r=>`<dt>${esc(r[0].replace(/ \?$/,''))}</dt><dd>${esc(r[1])}</dd>`).join('')}</dl>`:'<small style="color:var(--mute)">Non renseigné</small>'}</section>`}).join('');
+}
+function recapHTML(){
+ const groups=recapGroups();
  return `${M().recapBefore?M().recapBefore():''}<div class="recap">${groups}</div>
  <div class="actions">
   <div class="f" style="margin:6px 0 0"><label for="mailto">Envoyer à (mail)</label><input id="mailto" type="email" multiple inputmode="email" data-k="mailto" value="${esc(d.mailto||'')}" placeholder="${M().mailPh}"><small>Vous pouvez mettre plusieurs adresses mail, séparées par des virgules.</small></div>
@@ -671,7 +724,8 @@ document.addEventListener('click',e=>{
 });
 $('#prev').onclick=()=>{if(cur>0){cur--;render()}};
 $('#next').onclick=()=>{
- if(cur===STEPS.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses et commencer ${mode==='decl'?'une nouvelle déclaration':mode==='contest'?'une nouvelle contestation':'un nouveau constat'} ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;$('#reset').onclick=()=>{d={le:today};save();photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{});cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
+ if(mode==='part'&&cur===STEPS.length-1){Acc.psend();return}
+ if(cur===STEPS.length-1){const ok=$('#out');ok.innerHTML=`<div class="msg">Effacer toutes les réponses et commencer ${mode==='decl'?'une nouvelle déclaration':mode==='contest'?'une nouvelle contestation':'un nouveau constat'} ? <button type="button" class="link" id="reset">Oui, effacer</button></div>`;$('#reset').onclick=async()=>{await Acc.flush();d={le:today};save();photos=[];purls.forEach(u=>URL.revokeObjectURL(u));purls.clear();IDB.clear().catch(()=>{});cur=0;render()};ok.scrollIntoView({behavior:'smooth'});return}
  cur++;render()};
 $('#step').addEventListener('submit',e=>e.preventDefault());
 
@@ -915,13 +969,15 @@ const MODES={
   recapBefore:()=>{const l=cletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
   recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve :</b> envoyez la lettre en <b>recommandé avec accusé de réception</b> au service sinistres ou réclamations (ou par l’espace client). Sans réponse satisfaisante sous 2 mois, saisissez gratuitement la Médiation de l’assurance (mediation-assurance.org).</p></div>`,
   build:()=>buildDecl(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Contestation_indemnisation_${d.le||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},
-  mail:()=>{const l=cletter();return {to:clean1(d.mailto),subj:l.objet,body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma contestation de l’indemnisation proposée pour le sinistre du ${fr(d.date)||'…'} (contrat n° ${clean1(d.contrat)||'…'}).\n\nCordialement,\n${clean1(d.nom)}`}}}
-};
+  mail:()=>{const l=cletter();return {to:clean1(d.mailto),subj:l.objet,body:`Madame, Monsieur,\n\nVeuillez trouver ci-joint ma contestation de l’indemnisation proposée pour le sinistre du ${fr(d.date)||'…'} (contrat n° ${clean1(d.contrat)||'…'}).\n\nCordialement,\n${clean1(d.nom)}`}}},
+ /* Partie remplie par le voisin ou le syndic depuis un lien de partage (étapes fixées à l'ouverture du lien) */
+ part:{key:'constatDDE_part',steps:[],title:'Constat dégât des eaux',sub:'Votre partie et votre signature',newLabel:'Envoyer ma partie',folder:'Constats',
+  build:()=>buildConstat(),fname:()=>MODES.constat.fname(),mail:()=>mailParts()}};
 const M=()=>MODES[mode];
 const buildPDF=()=>M().build();
 const fname=()=>M().fname();
 function setMode(m){
- mode=m;try{localStorage.setItem(MODEKEY,m)}catch(e){}
+ mode=m;if(m!=='part')try{localStorage.setItem(MODEKEY,m)}catch(e){}
  if(typeof Stats!=='undefined')Stats.screen(m);
  const C=MODES[m];KEY=C.key;d={};try{d=JSON.parse(lsGet(KEY)||'{}')}catch(e){}if(!d.le)d.le=today;
  if(m==='decl')autoFromConstat();
@@ -996,7 +1052,7 @@ function bindRecap(){
   }
   const url=webDownload(bytes);say('Si le téléchargement ne démarre pas, <a href="'+url+'" target="_blank" rel="noopener">ouvrez le PDF ici</a>.');
  });
- $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,M().mail(),mode==='decl'?'Envoyer la déclaration':mode==='contest'?'Envoyer la contestation':'Envoyer le constat')));
+ $('#mail').onclick=e=>busy(e.currentTarget,async bytes=>{say(await sendMail(bytes,M().mail(),mode==='decl'?'Envoyer la déclaration':mode==='contest'?'Envoyer la contestation':'Envoyer le constat'));Acc.sent()});
  const ld=$('#lrar-dl');if(ld)ld.onclick=()=>$('#dl').click();
  const lc=$('#lrar-copy');if(lc)lc.onclick=async()=>{let ok=false;try{await navigator.clipboard.writeText(lrarAddr());ok=true}catch(e){try{const r=document.createRange();r.selectNodeContents($('#lrar-addr'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);ok=document.execCommand('copy')}catch(x){}}lc.textContent=ok?'✓ Adresse copiée':'Sélectionnez l’adresse et copiez-la';setTimeout(()=>lc.textContent='Copier l’adresse de l’assureur',2500)};
  document.querySelectorAll('[data-devis]').forEach(b=>b.onclick=e=>busy(e.currentTarget,async bytes=>say(await sendMail(bytes,devisParts(b.dataset.devis),'Demander un devis'))));
@@ -1049,11 +1105,11 @@ const ROUTES={
 };
 let view='form',route=null;
 /* Un constat est « en cours » dès qu'une seule case a été remplie par la personne (hors réglages automatiques) */
-const AUTOK=new Set(['le','_step','_route','type','orig','origprec','B_qual','ident']);
+const AUTOK=new Set(['le','_step','_route','type','orig','origprec','B_qual','ident','_dossier','_pbAt']);
 const constatStarted=()=>{const c=constatData();return Object.keys(c).some(k=>!AUTOK.has(k)&&(Array.isArray(c[k])?c[k].length:clean1(c[k])))};
 function showView(v){
  view=v;
- $('#home').hidden=v!=='home';$('#guide').hidden=v!=='guide';$('#form').hidden=v!=='form';
+ $('#home').hidden=v!=='home';$('#guide').hidden=v!=='guide';$('#form').hidden=v!=='form';$('#cloud').hidden=v!=='cloud';
  $('#fnav').hidden=v!=='form';$('#gnav').hidden=v!=='guide';
  document.querySelector('.prog').style.display=v==='form'?'':'none';
  if(v!=='form'){$('#ttl').textContent='Dégât des eaux\u00a0: que faire\u00a0?';$('#sub').textContent='Les bons gestes, puis le constat avec la bonne personne';document.title='Dégât des eaux : que faire ?'}
@@ -1062,6 +1118,7 @@ function showView(v){
 function goHome(){
  const c=constatData();
  $('#resume').innerHTML=constatStarted()?`<div class="note sec"><p>Vous avez un constat en cours${c.date?' (dégât du '+fr(c.date)+')':''}.</p><button type="button" class="btn pri" data-open="constat" style="width:100%;min-height:48px">Reprendre mon constat</button></div>`:'';
+ Acc.homeCard();
  showView('home');Stats.screen('accueil');
 }
 function goGuide(r){
@@ -1076,6 +1133,7 @@ function goGuide(r){
 }
 function openForm(m){showView('form');setMode(m)}
 async function newConstat(r){
+ await Acc.flush();
  {const j=JSON.stringify({le:today,_route:r,...ROUTES[r].pre});MEM.constatDDE_v1=j;try{localStorage.setItem('constatDDE_v1',j)}catch(e){}}
  try{await IDBS.constat.clear()}catch(e){}
  openForm('constat');
@@ -1088,20 +1146,528 @@ $('#gstart').onclick=()=>{
 document.addEventListener('click',e=>{
  const r=e.target.closest('[data-route]');if(r){goGuide(r.dataset.route);return}
  const o=e.target.closest('[data-open]');if(o){openForm(o.dataset.open);return}
- if(e.target.closest('[data-home]'))goHome();
+ if(e.target.closest('[data-home]')){if(mode==='part'&&view==='form')Acc.landing();else goHome()}
 });
+
+
+/* ================= Comptes facultatifs, historique, lien de partage =================
+   Cloud est la SEULE porte d'accès aux données « distantes » : les écrans (module Acc) n'appellent que ces fonctions,
+   qui renvoient toutes des Promises. Aujourd'hui l'implémentation est SIMULÉE dans localStorage (clés constatDDE_cloudsim_*,
+   code de connexion toujours 123456). Pour passer à un vrai serveur, on remplace le corps des fonctions sans toucher aux écrans.
+
+   Schéma prévu côté Supabase (rien n'est branché ici : aucune clé, aucune URL de projet, aucune bibliothèque) :
+   - Connexion : code OTP à 6 chiffres par e-mail, sans mot de passe (requestCode = signInWithOtp, verifyCode = verifyOtp).
+   - Table dossiers : id uuid (clé primaire, créé par l'appli), owner_id uuid → auth.users (suppression en cascade), guest_id uuid null
+     (partie invitée qui a un compte), constat jsonb, decl jsonb, contest jsonb, photos int, sent_at timestamptz, part_b_at timestamptz,
+     part_b_party text ('A' ou 'B'), created_at, updated_at.
+     RLS : le propriétaire (owner_id = auth.uid()) lit, crée, modifie et supprime ses lignes ; l'invité (guest_id = auth.uid()) peut seulement les lire.
+   - Table share_links : token text (clé primaire, au moins 128 bits aléatoires ; idéalement seule son empreinte SHA-256 est gardée),
+     dossier_id uuid → dossiers (cascade), owner_id uuid, role text ('voisin' ou 'syndic'), party text, created_at, expires_at (création + 30 jours),
+     revoked_at, used_at.
+     RLS : seul le propriétaire (owner_id = auth.uid()) lit, crée et annule ses liens ; aucun accès anonyme direct à la table.
+   - Fonctions RPC « security definer », appelables sans compte : open_share_link(token) ne renvoie que l'adresse, la date, le nom du déclarant
+     et le résumé de sa partie, et seulement si le lien est actif ; submit_part_b(token, data, signature) écrit la partie invitée et marque used_at
+     (usage unique), dans une seule transaction.
+   - Photos : bucket Storage privé photos/<owner_id>/<dossier_id>/…, accessible au seul propriétaire (en simulation, les photos restent sur le téléphone).
+   - Suppression du compte : fonction Edge qui supprime l'utilisateur (cascade sur dossiers et share_links). Export : lecture des lignes du propriétaire. */
+const Cloud=(()=>{
+ const PX='constatDDE_cloudsim_',CODE='123456',BASE='https://vitfix.fr/app/#p=',JOURS=30,DELAI=300;
+ const E=(code,message)=>Object.assign(new Error(message),{code});
+ const rd=(k,def)=>{try{const v=JSON.parse(localStorage.getItem(PX+k)||'null');return v==null?def:v}catch(e){return def}};
+ const wr=(k,v)=>{try{localStorage.setItem(PX+k,JSON.stringify(v))}catch(e){throw E('stockage','Enregistrement impossible : le stockage de ce téléphone est plein ou bloqué.')}};
+ const cp=v=>v==null?v:JSON.parse(JSON.stringify(v));
+ /* Chaque appel répond après un petit délai, avec une copie des données, comme un vrai serveur */
+ const rpc=(fn,ms=DELAI)=>new Promise((res,rej)=>setTimeout(()=>{try{res(cp(fn()))}catch(e){rej(e)}},ms));
+ const now=()=>new Date().toISOString();
+ const rnd=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return a};
+ const newId=()=>{const a=rnd(16);a[6]=a[6]&15|64;a[8]=a[8]&63|128;const h=[...a].map(x=>x.toString(16).padStart(2,'0')).join('');return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`};
+ /* Jeton du lien de partage : 144 bits aléatoires (crypto.getRandomValues), en base64url */
+ const newToken=()=>btoa(String.fromCharCode.apply(null,rnd(18))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+ const norm=e=>String(e||'').trim().toLowerCase();
+ const me=()=>{const s=rd('session'),u=s&&rd('users',{})[s.email];if(!u)throw E('auth','Connectez-vous pour continuer.');return u};
+ const meOrNull=()=>{try{return me()}catch(e){return null}};
+ const lstat=l=>l.revokedAt?'annule':l.usedAt?'utilise':Date.parse(l.expiresAt)<Date.now()?'expire':'actif';
+ const shareOf=id=>{const l=Object.values(rd('links',{})).filter(x=>x.dossierId===id).sort((a,b)=>a.createdAt<b.createdAt?1:-1)[0];
+  return l?{token:l.token,url:BASE+l.token,role:l.role,party:l.party,createdAt:l.createdAt,expiresAt:l.expiresAt,usedAt:l.usedAt||null,status:lstat(l)}:null};
+ const out=(z,u)=>({...z,mine:z.ownerId===u.id,share:z.ownerId===u.id?shareOf(z.id):null});
+ const link=t=>{const l=rd('links',{})[String(t||'')];if(!l)throw E('introuvable','Ce lien n’existe pas.');const s=lstat(l);
+  if(s==='annule')throw E('annule','Ce lien a été annulé.');if(s==='utilise')throw E('utilise','Ce lien a déjà servi.');if(s==='expire')throw E('expire','Ce lien a expiré.');return l};
+ const api={
+  simulated:true,
+  newId,
+  /* Envoie un code à 6 chiffres à l'adresse (simulation : rien n'est envoyé, le code est toujours 123456) */
+  requestCode(email){return rpc(()=>{const e=norm(email);if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e))throw E('email','Cette adresse e-mail ne semble pas correcte.');
+   const o=rd('otp',{});o[e]={expiresAt:new Date(Date.now()+6e5).toISOString()};wr('otp',o);return{email:e,expiresAt:o[e].expiresAt}})},
+  /* Vérifie le code ; crée le compte s'il n'existe pas ; ouvre la session → {user:{id,email,createdAt},isNew} */
+  verifyCode(email,code){return rpc(()=>{const e=norm(email),o=rd('otp',{});
+   if(!o[e]||Date.parse(o[e].expiresAt)<Date.now())throw E('code_expire','Ce code a expiré. Demandez-en un nouveau.');
+   if(String(code||'').trim()!==CODE)throw E('code','Ce code n’est pas le bon. Vérifiez et réessayez.');
+   delete o[e];wr('otp',o);const us=rd('users',{});let isNew=false;
+   if(!us[e]){us[e]={id:newId(),email:e,createdAt:now()};wr('users',us);isNew=true}
+   wr('session',{email:e,userId:us[e].id,since:now()});return{user:us[e],isNew}})},
+  /* Session gardée sur l'appareil : réponse immédiate, sans réseau */
+  currentUser(){return Promise.resolve().then(()=>cp(meOrNull()))},
+  signOut(){return rpc(()=>{try{localStorage.removeItem(PX+'session')}catch(e){}return true},100)},
+  deleteAccount(){return rpc(()=>{const u=me(),ds=rd('dossiers',{}),ls=rd('links',{}),us=rd('users',{});
+   for(const id in ds){if(ds[id].ownerId===u.id){delete ds[id];for(const t in ls)if(ls[t].dossierId===id)delete ls[t]}else if(ds[id].guestId===u.id)ds[id].guestId=null}
+   delete us[u.email];wr('dossiers',ds);wr('links',ls);wr('users',us);try{localStorage.removeItem(PX+'session')}catch(e){}return true})},
+  exportData(){return rpc(()=>{const u=me(),ds=Object.values(rd('dossiers',{})).filter(z=>z.ownerId===u.id),ids=new Set(ds.map(z=>z.id));
+   return{exporteLe:now(),compte:{email:u.email,creeLe:u.createdAt},dossiers:ds,liensDePartage:Object.values(rd('links',{})).filter(l=>ids.has(l.dossierId))}})},
+  listDossiers(){return rpc(()=>{const u=me();return Object.values(rd('dossiers',{})).filter(z=>z.ownerId===u.id||z.guestId===u.id).map(z=>out(z,u))})},
+  getDossier(id){return rpc(()=>{const u=me(),z=rd('dossiers',{})[id];if(!z||(z.ownerId!==u.id&&z.guestId!==u.id))throw E('introuvable','Dossier introuvable.');return out(z,u)})},
+  /* Crée ou met à jour un dossier {id, constat, decl, contest, photos, sentAt} ; l'identifiant vient de l'appli (uuid) */
+  saveDossier(dz){return rpc(()=>{const u=me(),ds=rd('dossiers',{}),t=now(),ex=dz&&dz.id&&ds[dz.id],old=ex&&ex.ownerId===u.id?ex:null;
+   const z={id:old?old.id:(dz.id&&!ex?dz.id:newId()),ownerId:u.id,createdAt:old?old.createdAt:t,updatedAt:t,constat:dz.constat||null,decl:dz.decl||null,contest:dz.contest||null,
+    photos:+dz.photos||0,sentAt:dz.sentAt||null,partBAt:old?old.partBAt||null:null,partBParty:old?old.partBParty||null:null,guestId:old?old.guestId||null:null};
+   ds[z.id]=z;wr('dossiers',ds);return out(z,u)})},
+  /* Copie dans le compte les documents déjà sur le téléphone (appelé seulement si la case est cochée) */
+  async importLocal(){const r=[];for(const it of localDossiers())r.push(await api.saveDossier(it));return r},
+  /* Un seul lien actif par dossier : en créer un nouveau annule le précédent → {token,url,expiresAt,role,party} */
+  createShareLink(dossierId,role){return rpc(()=>{const u=me(),z=rd('dossiers',{})[dossierId];if(!z||z.ownerId!==u.id)throw E('introuvable','Dossier introuvable.');
+   const ls=rd('links',{}),t=now();for(const k in ls)if(ls[k].dossierId===z.id&&lstat(ls[k])==='actif')ls[k].revokedAt=t;
+   const tok=newToken(),party=z.constat&&z.constat._route==='moi'?'A':'B';
+   ls[tok]={token:tok,dossierId:z.id,ownerId:u.id,role:role==='syndic'?'syndic':'voisin',party,createdAt:t,expiresAt:new Date(Date.now()+JOURS*864e5).toISOString(),revokedAt:null,usedAt:null};
+   wr('links',ls);return{token:tok,url:BASE+tok,expiresAt:ls[tok].expiresAt,createdAt:t,role:ls[tok].role,party}})},
+  revokeShareLink(token){return rpc(()=>{const u=me(),ls=rd('links',{}),l=ls[token];if(!l||l.ownerId!==u.id)throw E('introuvable','Ce lien n’existe pas.');
+   if(!l.revokedAt)l.revokedAt=now();wr('links',ls);return true})},
+  /* Sans compte : ce que la partie invitée a le droit de voir, ou une erreur (code introuvable, annule, utilise, expire) */
+  openShareLink(token){return rpc(()=>{const l=link(token),z=rd('dossiers',{})[l.dossierId];if(!z||!z.constat)throw E('introuvable','Ce lien n’existe pas.');
+   const c=z.constat,P=l.party,O=P==='B'?'A':'B',g=k=>c[O+'_'+k]||'';
+   return{role:l.role,party:P,expiresAt:l.expiresAt,adresse:c.adresse||'',date:c.date||'',declarant:g('nom'),
+    resume:{partie:O,qual:g('qual'),occ:g('occ'),etage:g('etage'),bat:g('bat'),assureur:g('assureur'),contrat:g('contrat')},
+    prefill:Object.fromEntries(Object.entries(c).filter(([k])=>k.startsWith(P+'_')))}})},
+  /* Sans compte : enregistre la partie invitée et sa signature {sig,sigt}, le lien ne peut plus servir → {signedAt, constat complet pour le PDF final} */
+  submitPartB(token,data,signature){return rpc(()=>{const l=link(token),ds=rd('dossiers',{}),z=ds[l.dossierId];if(!z||!z.constat)throw E('introuvable','Ce lien n’existe pas.');
+   if(!signature||!signature.sig)throw E('signature','Signez avant d’envoyer.');
+   const P=l.party,c=z.constat,t=now();
+   for(const k of Object.keys(c))if(k.startsWith(P+'_'))delete c[k];
+   for(const k in data||{})if(k.startsWith(P+'_'))c[k]=data[k];
+   c['sig'+P]=signature.sig;c['sigt'+P]=signature.sigt||signature.sig;
+   z.partBAt=t;z.partBParty=P;z.updatedAt=t;const u=meOrNull();if(u&&u.id!==z.ownerId)z.guestId=u.id;
+   const ls=rd('links',{});ls[l.token].usedAt=t;wr('dossiers',ds);wr('links',ls);
+   const fin={...c};delete fin.mailto;return{signedAt:t,constat:fin}})}
+ };
+ return api;
+})();
+
+/* Documents gardés sur le téléphone (inchangés pour qui n'a pas de compte) et leur lien avec un dossier du compte (_dossier) */
+const PRIVACY='https://vitfix.fr/confidentialite.html';
+const DOCKEYS={constat:'constatDDE_v1',decl:'declSinistre_v1',contest:'contestIndem_v1'};
+const lsSet=(k,j)=>{MEM[k]=j;try{localStorage.setItem(k,j)}catch(e){}};
+const docData=m=>{try{return JSON.parse(lsGet(DOCKEYS[m])||'{}')||{}}catch(e){return{}}};
+const DAUTO=new Set(['le','_step','_dossier','ctype','items','mailto']);
+const docStarted=m=>{if(m==='constat')return constatStarted();const o=docData(m);
+ return Object.keys(o).some(k=>!DAUTO.has(k)&&(Array.isArray(o[k])?o[k].length:clean1(o[k])))||(Array.isArray(o.items)&&o.items.some(it=>it&&(clean1(it.des)||num(it.val))))};
+const strip=o=>{const c={...o};delete c._step;delete c._dossier;delete c._pbAt;return c};
+const putDoc=(m,o)=>{if(KEY===DOCKEYS[m])save();else lsSet(DOCKEYS[m],JSON.stringify(o))};
+const liveDoc=m=>KEY===DOCKEYS[m]?d:docData(m);
+/* Constat, déclaration et contestation commencés sur ce téléphone, réunis en un dossier */
+function localDossiers(){
+ const ms=Object.keys(DOCKEYS).filter(docStarted);if(!ms.length)return[];
+ const first=liveDoc(ms[0]),id=first._dossier||Cloud.newId(),z={id};
+ for(const m of ms){const o=liveDoc(m);if(o._dossier!==id){o._dossier=id;putDoc(m,o)}z[m]=strip(o)}
+ return[z];
+}
+const partSteps=P=>[...party(P),{t:'Votre signature',sign:[P],fields:[]},{t:'Vérifier et envoyer',partsend:1,fields:[]}];
+const tokFromHash=()=>{const m=/^#p=([A-Za-z0-9_-]{16,})$/.exec(location.hash||'');return m?m[1]:null};
+/* Génère un PDF ou un mail à partir des données d'un dossier, avec le code PDF existant (qui lit d, mode et photos) */
+async function withDoc(m,data,ph,fn){
+ const s={d,mode,photos,KEY};d=data;mode=m;photos=ph||[];KEY='constatDDE_tmp';
+ try{return await fn()}finally{d=s.d;mode=s.mode;photos=s.photos;KEY=s.KEY}
+}
+
+/* ---------- Écrans : connexion, historique, détail, partage, côté voisin, mon compte ---------- */
+const Acc=(()=>{
+ let user,list=null,DZ=null,scr='',after=null,origin='home',kind='signup',em='',wantImp=true,info=null,tok=null,fin=null,shareFrom='detail',localDz=null,flash='',chain=Promise.resolve();
+ const C=()=>$('#cloud');
+ const frT=t=>t?new Date(t).toLocaleDateString('fr-FR'):'';
+ const frL=iso=>{if(!iso)return'';const t=new Date(iso+'T12:00:00');return isNaN(t)?'':t.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})};
+ const SIMNOTE=Cloud.simulated?'<p class="simnote" role="note">Mode essai : serveur simulé, code 123456</p>':'';
+ const emsg=e=>esc(e&&e.message||'Une erreur est survenue. Réessayez.');
+ const say=(t,err,id)=>{const o=document.getElementById(id||'accout')||(view==='form'?$('#out'):null);if(o)o.innerHTML=t?`<div class="msg${err?' err':''}" role="status">${t}</div>`:''};
+ const top=(lab,act,right)=>`<div class="acctop"><button type="button" class="link" data-acc="${act}">‹ ${lab}</button>${right||''}</div>`;
+ const enqueue=fn=>{const p=chain.then(fn,fn);chain=p.catch(()=>{});return p};
+ const roleL=r=>r==='syndic'?'le syndic':'le voisin',roleDu=r=>r==='syndic'?'du syndic':'du voisin';
+ function page(s,title,sub,html){scr=s;showView('cloud');$('#ttl').textContent=title;$('#sub').textContent=sub;document.title=title;C().innerHTML=html;window.scrollTo({top:0})}
+ function backToForm(){showView('form');document.title=M().title;render()}
+ function home(){if(tokFromHash())try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}goHome()}
+ async function busy(b,lab,fn){const t=b.textContent;b.disabled=true;b.textContent=lab;try{return await fn()}finally{if(b.isConnected){b.disabled=false;b.textContent=t}}}
+
+ /* ----- Ce que l'on affiche d'un dossier ----- */
+ const ddate=z=>(z.constat&&z.constat.date)||(z.decl&&z.decl.date)||(z.contest&&z.contest.date)||'';
+ const adr=z=>clean1(z.constat&&z.constat.adresse)||clean1(z.decl&&(z.decl.lieu||z.decl.adr))||clean1(z.contest&&z.contest.adr)||'Adresse à compléter';
+ const both=z=>!!(z.constat&&z.constat.sigA&&z.constat.sigB);
+ function etat(z){const c=z.constat||{},s=z.share;
+  if(both(z))return z.sentAt?{k:'sent',t:'Envoyé à l’assureur'}:{k:'ok',t:'Signé par les deux'};
+  if(s&&s.status==='actif')return{k:'wait',t:'En attente '+roleDu(s.role)};
+  if(z.sentAt)return{k:'sent',t:'Envoyé à l’assureur'};
+  if(!z.constat)return{k:'sent',t:z.contest?'Contestation préparée':'Déclaration préparée'};
+  if(c.sigA||c.sigB)return{k:'sent',t:'Signé par vous'};
+  return{k:'sent',t:'Brouillon'}}
+ function cause(z){const c=z.constat;if(!c)return z.decl?tlab(z.decl):z.contest?tlab(z.contest):'';
+  const INF={toiture:'la toiture',terrasse:'la terrasse',facade:'la façade',fenetre:'une fenêtre',joint:'un joint d’étanchéité'};
+  const N={canal:'fuite sur canalisation',appareil:'fuite d’un appareil',cheneau:'chéneaux ou gouttières',gel:'gel'};
+  const n=[].concat(c.nat||[]).map(v=>v==='infil'?'infiltration'+(INF[[].concat(c.infil||[])[0]]?' par '+INF[[].concat(c.infil)[0]]:''):v==='autre'?clean1(c.autretxt):N[v]).filter(Boolean);
+  if(n.length)return n[0];
+  return{voisin:'fuite chez le voisin',syndic:'fuite dans les parties communes',moi:'fuite chez moi',inconnu:'origine à rechercher'}[c._route]||''}
+ function docsLine(z){const p=[];if(z.constat)p.push(both(z)?'Constat signé avec '+roleL(z.share&&z.share.role||(z.constat._route==='syndic'?'syndic':'voisin')):'Constat');
+  if(z.decl)p.push(p.length?'déclaration':'Déclaration');if(z.contest)p.push(p.length?'contestation':'Contestation');return p.join(' · ')}
+ const isLocal=z=>!!z&&docData('constat')._dossier===z.id;
+ const localPhotos=async()=>{try{return((await IDBS.constat.all())||[]).sort((x,y)=>x.t-y.t)}catch(e){return[]}};
+
+ /* ----- Enregistrement dans le compte d'un document gardé sur le téléphone -----
+    force : aussi quand le document n'est pas encore dans le compte (fin du constat). Sinon, seulement s'il y est déjà. */
+ async function push(m,force){
+  if(!user||!DOCKEYS[m]||!docStarted(m))return null;
+  const data=liveDoc(m);let id=m==='constat'?data._dossier:(docData('constat')._dossier||data._dossier);
+  if(!id){if(!force||(m!=='constat'&&data.type!=='dde'))return null;id=Cloud.newId()}
+  if(data._dossier!==id){data._dossier=id;putDoc(m,data)}
+  let z=null;try{z=await Cloud.getDossier(id)}catch(e){if(e.code!=='introuvable')throw e}
+  if(z&&!z.mine)z=null;
+  if(!z&&!force)return null;
+  let n=z?z.photos||0:0;if(m==='constat')try{n=((await IDBS.constat.all())||[]).length}catch(e){}
+  const tgt=liveDoc(m);if(tgt._dossier!==id)return null;
+  /* L'autre partie a signé depuis le lien : sa partie est reprise sur ce téléphone avant tout nouvel enregistrement */
+  let pulled=false;
+  if(m==='constat'&&z&&z.constat&&z.partBAt&&tgt._pbAt!==z.partBAt){const P=z.partBParty||'B';
+   for(const k of Object.keys(tgt))if(k.startsWith(P+'_'))delete tgt[k];
+   for(const k in z.constat)if(k.startsWith(P+'_')||k==='sig'+P||k==='sigt'+P)tgt[k]=z.constat[k];
+   tgt._pbAt=z.partBAt;putDoc(m,tgt);pulled=true}
+  const snap=strip(tgt);
+  if(z&&JSON.stringify(z[m]||null)===JSON.stringify(snap)&&(z.photos||0)===n)return{dz:z,pulled};
+  const saved=await Cloud.saveDossier({...(z||{}),id,[m]:snap,photos:n});list=null;
+  if(saved.id!==id){const t2=liveDoc(m);if(t2._dossier===id){t2._dossier=saved.id;putDoc(m,t2)}}
+  return{dz:saved,pulled};
+ }
+ function unstamp(){for(const m in DOCKEYS){const o=liveDoc(m);if(o._dossier||o._pbAt){delete o._dossier;delete o._pbAt;putDoc(m,o)}}localDz=null;list=null}
+
+ /* ----- Accueil : encart de création de compte, ou raccourci vers l'historique ----- */
+ function homeLine(){if(!list)return'…';const n=list.length;if(!n)return'Aucun dossier pour l’instant';
+  const w=list.filter(z=>etat(z).k==='wait'),r=new Set(w.map(z=>z.share.role));
+  return `${n} dossier${n>1?'s':''}${w.length?` · ${w.length} en attente${r.size===1?' '+roleDu([...r][0]):''}`:''}`}
+ function homeCard(){
+  const el=$('#acchome');if(!el||user===undefined)return;
+  const f=flash?`<div class="msg" role="status" style="margin:0 0 14px">${flash}</div>`:'';flash='';
+  if(!user){el.innerHTML=f+`<div class="card yel"><h3>Créez votre compte gratuit</h3><p>Envoyez le constat au voisin ou au syndic en un simple lien, et retrouvez tous vos dégâts des eaux au même endroit.</p>
+   <div class="duo"><button class="btn pri" type="button" data-acc="signup">Créer mon compte</button><button class="btn" type="button" data-acc="login">Me connecter</button></div>
+   <p class="small" style="margin-top:10px">Facultatif : l’appli marche aussi sans compte. En cas d’urgence, commencez par les étapes ci-dessous.</p></div>`;return}
+  el.innerHTML=f+`<div class="card accrow"><div><b>Mes dégâts des eaux</b><div id="acccount">${esc(homeLine())}</div></div><button class="btn pri" type="button" data-acc="hist">Ouvrir</button></div>`;
+  enqueue(async()=>{await push('constat');list=await Cloud.listDossiers();const c=$('#acccount');if(c)c.textContent=homeLine()}).catch(()=>{});
+ }
+
+ /* ----- Fin du constat : cartes au-dessus du récapitulatif ----- */
+ const noCompte=()=>{try{return localStorage.getItem('constatDDE_nocompte')==='1'}catch(e){return false}};
+ function cards(){
+  if(mode!=='constat'||view!=='form'||!STEPS[cur]||!STEPS[cur].recap)return'';
+  const z=localDz&&localDz.id===d._dossier?localDz:null,s=z&&z.share;let h='';
+  if(!(d.sigA&&d.sigB))h+=user&&s&&s.status==='actif'
+   ?`<div class="card yel"><h3>En attente ${roleDu(s.role)}</h3><p>Lien envoyé le ${frT(s.createdAt)}, valable jusqu’au ${frT(s.expiresAt)}.</p><button class="btn pri" type="button" data-acc="rshare">Voir le lien de partage</button></div>`
+   :`<div class="card yel"><h3>Faire remplir l’autre partie</h3><p>Envoyez un lien au voisin ou au syndic. Il remplit sa partie et signe depuis son téléphone, sans installer l’appli.</p><button class="btn pri" type="button" data-acc="rshare">Créer le lien de partage</button></div>`;
+  if(user)h+=`<div class="card"><h3>Constat gardé dans votre compte</h3><p>${esc(user.email)}</p><button class="btn" type="button" data-acc="hist">Mes dégâts des eaux</button><div id="accsync"></div></div>`;
+  else if(!noCompte())h+=`<div class="card"><h3>Garder ce constat dans un compte</h3><p>Retrouvez ce constat, vos déclarations et vos prochains dégâts des eaux sur n’importe quel téléphone. C’est gratuit et facultatif.</p>
+   <div class="stack"><button class="btn pri" type="button" data-acc="rsignup">Créer mon compte</button><button class="btn" type="button" data-acc="rno">Non merci, garder sur ce téléphone</button></div></div>`;
+  return h;
+ }
+ const drawCards=()=>{const el=$('#acccards');if(el)el.innerHTML=cards()};
+ /* Utilisateur connecté arrivé au récapitulatif : le document est enregistré dans son compte */
+ function onRecap(){
+  if(!user||!DOCKEYS[mode])return;const m=mode;
+  enqueue(()=>push(m,true)).then(r=>{if(!r)return;if(m==='constat')localDz=r.dz;
+   if(r.pulled&&view==='form'&&mode===m&&STEPS[cur].recap)keepScroll();else drawCards();
+  }).catch(e=>say('Enregistrement dans le compte impossible pour l’instant : '+emsg(e),1,'accsync'));
+ }
+ function sent(){if(!user||mode!=='constat'||!d._dossier)return;const id=d._dossier;
+  enqueue(async()=>{const z=await Cloud.getDossier(id);if(z.mine){localDz=await Cloud.saveDossier({...z,sentAt:new Date().toISOString()});list=null}}).catch(()=>{})}
+
+ /* ----- Connexion : e-mail puis code à 6 chiffres ----- */
+ function login(k,aft){kind=k;after=aft||{t:'hist'};origin=view==='form'?'form':scr==='voisin'?'voisin':'home';emailScr()}
+ function emailScr(){
+  const ms=Object.keys(DOCKEYS).filter(docStarted),n=ms.length;
+  const what=n>1?`les ${n} documents`:{constat:'le constat',decl:'la déclaration',contest:'la contestation'}[ms[0]];
+  page('email',kind==='login'?'Me connecter':'Créer mon compte','Sans mot de passe : un code par e-mail',top('Retour','back')+`<form class="step" data-accform="email" novalidate>
+   <p class="kicker">Étape 1 sur 2</p><h2>Votre adresse e-mail</h2>
+   <div class="f"><label for="acc-mail">E-mail</label><input id="acc-mail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" value="${esc(em)}" placeholder="dupont@exemple.fr"><small>Nous vous envoyons un code à 6 chiffres. Pas de mot de passe à retenir.</small></div>
+   ${n?`<div class="opts" style="margin-bottom:14px"><label class="opt wide"><input type="checkbox" id="acc-imp"${wantImp?' checked':''}><span>Copier dans mon compte ${what} déjà sur ce téléphone</span></label></div>`:''}
+   <button class="btn pri" type="submit">Recevoir mon code</button><div id="accout"></div>
+   <p class="small">En créant un compte, vos constats sont gardés sur un serveur en Europe. Vous pouvez supprimer votre compte à tout moment. <a href="${PRIVACY}" target="_blank" rel="noopener">Politique de confidentialité</a></p></form>`+SIMNOTE);
+ }
+ function codeScr(note){
+  page('code',kind==='login'?'Me connecter':'Créer mon compte','Sans mot de passe : un code par e-mail',top('Retour','back')+`<form class="step" data-accform="code" novalidate>
+   <p class="kicker">Étape 2 sur 2</p><h2>Tapez le code reçu</h2>
+   <p style="margin:0 0 10px;font-size:15px">Envoyé à ${esc(em)}. Il est valable 10 minutes.</p>
+   <div class="code">${'<div></div>'.repeat(6)}<input id="acc-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" aria-label="Code à 6 chiffres"></div>
+   <button class="btn pri" type="submit">Valider</button><div id="accout"></div>
+   <p class="small"><button type="button" class="link" data-acc="resend">Renvoyer le code</button> · <button type="button" class="link" data-acc="chmail">Changer d’adresse</button></p></form>`+SIMNOTE);
+  paintCode();if(note)say(note);try{$('#acc-code').focus({preventScroll:true})}catch(e){}
+ }
+ function paintCode(){const i=$('#acc-code');if(!i)return'';const v=i.value.replace(/\D/g,'').slice(0,6);if(v!==i.value)i.value=v;
+  C().querySelectorAll('.code div').forEach((b,k)=>{b.textContent=v[k]||'';b.classList.toggle('on',k<v.length);b.classList.toggle('cur',k===Math.min(v.length,5))});return v}
+ async function submit(f,form){
+  const b=form.querySelector('[type=submit]');if(b.disabled)return;say('');
+  if(f==='email'){em=$('#acc-mail').value.trim();const cb=$('#acc-imp');wantImp=cb?cb.checked:false;
+   try{await busy(b,'Envoi…',async()=>{em=(await Cloud.requestCode(em)).email});codeScr()}catch(e){say(emsg(e),1)}}
+  if(f==='code'){const v=paintCode();if(v.length<6){say('Tapez les 6 chiffres du code.',1);return}
+   try{await busy(b,'Vérification…',async()=>{user=(await Cloud.verifyCode(em,v)).user;list=null;
+     if(wantImp)await Cloud.importLocal();await push('constat')});
+    await runAfter()}
+   catch(e){say(emsg(e),1);const i=$('#acc-code');if(i){i.value='';paintCode();i.focus({preventScroll:true})}}}
+ }
+ async function runAfter(){const a=after||{t:'hist'};after=null;
+  if(a.t==='form')return backToForm();
+  if(a.t==='voisin')return landing();
+  if(a.t==='share'){const r=await enqueue(()=>push('constat',true));if(r)return shareScr(r.dz,'form');return backToForm()}
+  return hist()}
+
+ /* ----- Mes dégâts des eaux ----- */
+ function listHTML(){
+  if(!list.length)return'<div class="card"><p>Aucun dossier pour l’instant. Vos constats terminés apparaîtront ici.</p></div>';
+  const key=z=>ddate(z)||z.createdAt;
+  return `<div class="dlist">${[...list].sort((a,b)=>key(b).localeCompare(key(a))).map(z=>{const e=etat(z),dt=frL(ddate(z)),ca=cause(z);
+   return `<button type="button" class="dos" data-acc="open" data-id="${esc(z.id)}"><b>${esc(adr(z))}</b><span>${esc([dt||'Date à compléter',ca].filter(Boolean).join(' · '))}</span><span>${esc(z.mine?docsLine(z):'Constat reçu par un lien de partage')}</span><em class="pill p-${e.k}">${esc(e.t)}</em></button>`}).join('')}</div>`}
+ async function hist(){
+  if(!user){login('login');return}
+  page('hist','Mes dégâts des eaux',user.email,top('Accueil','home','<button type="button" class="link" data-acc="compte">Mon compte</button>')+
+   `<button class="btn pri" type="button" data-acc="new" style="margin-bottom:14px">+ Nouveau dégât des eaux</button><div id="acclist">${list?listHTML():'<p class="small">Chargement…</p>'}</div><div id="accout"></div>`);
+  try{await enqueue(async()=>{for(const m in DOCKEYS)await push(m);list=await Cloud.listDossiers()});if(scr==='hist')$('#acclist').innerHTML=listHTML()}catch(e){say(emsg(e),1)}
+ }
+
+ /* ----- Détail d'un dossier ----- */
+ async function detail(id){
+  page('detail','Dégât des eaux','',top('Mes dégâts des eaux','hist')+'<p class="small">Chargement…</p>');
+  try{DZ=await Cloud.getDossier(id);if(scr==='detail')drawDetail()}catch(e){C().innerHTML=top('Mes dégâts des eaux','hist')+`<div class="msg err">${emsg(e)}</div>`}
+ }
+ function drawDetail(){
+  const z=DZ,c=z.constat||{},s=z.share,e=etat(z),dt=ddate(z),loc=isLocal(z);
+  let st=`<em class="pill p-${e.k}" style="margin:0 0 10px">${esc(e.t)}</em>`,btn='';
+  if(!z.mine)st+=`<p>Ce constat vous a été envoyé par un lien de partage. Vous l’avez rempli et signé${z.partBAt?' le '+frT(z.partBAt):''}.</p>`;
+  else if(!z.constat)st+='<p>Ce dossier ne contient pas encore de constat amiable.</p>';
+  else if(both(z))st+=`<p>Constat signé par les deux parties${z.partBAt?' le '+frT(z.partBAt):''}.${z.sentAt?' Envoyé à l’assureur le '+frT(z.sentAt)+'.':''}</p>`;
+  else if(s&&s.status==='actif'){st+=`<p>Lien envoyé le ${frT(s.createdAt)}, valable jusqu’au ${frT(s.expiresAt)}. Cet écran se met à jour dès que ${roleL(s.role)} a signé.</p>`;
+   btn='<button class="btn" type="button" data-acc="reshare">Renvoyer le lien</button><button class="btn danger" type="button" data-acc="revoke">Annuler le lien</button>'}
+  else{st+=`<p>${s&&s.status==='annule'?'Le lien de partage a été annulé. ':s&&s.status==='expire'?'Le lien de partage a expiré le '+frT(s.expiresAt)+'. ':''}L’autre partie n’a pas encore signé.</p>`;
+   btn='<button class="btn pri" type="button" data-acc="reshare">Faire remplir l’autre partie</button>'}
+  if(z.mine&&z.constat)btn+='<button class="btn" type="button" data-acc="resume">Reprendre ou modifier le constat</button>';
+  const row=(t,a)=>`<div class="doc"><span>${t}</span>${a}</div>`,pdf=m=>`<button type="button" class="link" data-acc="pdf" data-m="${m}">PDF</button>`;
+  let docs='';
+  if(z.constat)docs+=row(`Constat amiable (${both(z)?'signé par les deux':c.sigA||c.sigB?'partie '+(c.sigA?'A':'B')+' signée':'non signé'})`,pdf('constat'));
+  if(z.decl)docs+=row('Déclaration à l’assureur',pdf('decl'));
+  else if(z.mine&&z.constat&&loc)docs+=row('Déclaration à l’assureur','<button type="button" class="link" data-acc="todecl">Préparer</button>');
+  if(z.contest)docs+=row('Contestation de l’indemnisation',pdf('contest'));
+  if(z.photos)docs+=row(`Photos (${z.photos})`,loc?'<button type="button" class="link" data-acc="photos">Voir</button>':'<span class="small" style="margin:0">sur le téléphone d’origine</span>');
+  let next='';
+  if(z.mine&&z.constat&&c.date){const lim=ouvres(c.date,5),late=lim<today;
+   next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Constat envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF.</p><button class="btn" type="button" data-acc="send">Renvoyer à mon assureur</button><div id="accout3"></div></div>`
+    :`<div class="card yel"><h3>Prochaine étape</h3><p>${late?`Le délai de 5 jours ouvrés est passé depuis le ${frL(lim)} : envoyez le constat à votre assureur dès que possible.`:`Envoyez le constat à votre assureur avant le ${frL(lim)} (5 jours ouvrés).`}</p><button class="btn pri" type="button" data-acc="send">Envoyer à mon assureur</button><div id="accout3"></div></div>`}
+  $('#ttl').textContent=dt?'Dégât du '+frL(dt):'Dégât des eaux';$('#sub').textContent=adr(z);document.title=$('#ttl').textContent;
+  C().innerHTML=top('Mes dégâts des eaux','hist')+`<div class="card">${st}${btn?`<div class="stack">${btn}</div>`:''}<div id="accout"></div></div>
+   <div class="card"><h3>Documents</h3>${docs||'<p>Aucun document.</p>'}<div id="accout2"></div></div>${next}`;
+ }
+ async function pdf(m,b){const z=DZ;if(!z||!z[m])return;
+  try{const ph=m==='constat'&&isLocal(z)?await localPhotos():[];
+   say(await busy(b,'…',()=>withDoc(m,z[m],ph,async()=>{const bytes=await buildPDF();
+    if(NATIVE){try{await nativeSave(bytes);return M().saved(fname())}catch(x){await nativeSend(bytes,{...M().mail(),to:''},'Enregistrer le PDF');return'Choisissez où enregistrer le PDF (Fichiers, Drive…).'}}
+    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})),0,'accout2');
+   try{Stats.ev('document_pdf',{document:m})}catch(x){}}
+  catch(e){say(cancelled(e)?'Annulé.':'Impossible de créer le PDF : '+emsg(e),!cancelled(e),'accout2')}
+ }
+ async function send(b){const z=DZ;if(!z||!z.constat)return;
+  try{const ph=isLocal(z)?await localPhotos():[];
+   const msg=await busy(b,'Génération…',()=>withDoc('constat',z.constat,ph,async()=>sendMail(await buildPDF(),M().mail(),'Envoyer le constat')));
+   DZ=await Cloud.saveDossier({...z,sentAt:new Date().toISOString()});list=null;if(localDz&&localDz.id===DZ.id)localDz=DZ;
+   if(scr==='detail'){drawDetail();say(msg,0,'accout3')}}
+  catch(e){say(cancelled(e)?'Envoi annulé.':'Impossible de terminer : '+emsg(e),!cancelled(e),'accout3')}
+ }
+ /* Reprendre un dossier du compte sur ce téléphone (le constat en cours, s'il est différent, est d'abord rangé dans le compte) */
+ async function resume(step,sure){
+  const z=DZ;if(!z||!z.constat)return;const other=constatStarted()&&docData('constat')._dossier!==z.id;
+  if(other&&!sure){say(`Un autre constat est en cours sur ce téléphone. Il sera rangé dans votre compte, mais ses photos resteront à ajouter de nouveau.<div class="actions"><button class="btn pri" type="button" data-acc="resume2" data-step="${step==null?'':step}">Continuer</button><button class="btn" type="button" data-acc="nothing">Annuler</button></div>`);return}
+  try{await enqueue(async()=>{
+    if(other){await push('constat',true);try{await IDBS.constat.clear()}catch(e){}}
+    for(const m of['decl','contest']){const o=docData(m);
+     if(o._dossier&&o._dossier!==z.id){await push(m);lsSet(DOCKEYS[m],JSON.stringify(z[m]?{...z[m],_dossier:z.id}:{}))}
+     else if(z[m]&&!docStarted(m))lsSet(DOCKEYS[m],JSON.stringify({...z[m],_dossier:z.id}))}
+    const c={...z.constat,_dossier:z.id,_step:step==null?CSTEPS.length-1:step};if(z.partBAt)c._pbAt=z.partBAt;
+    lsSet(DOCKEYS.constat,JSON.stringify(c));localDz=z});
+   openForm('constat')}catch(e){say(emsg(e),1)}
+ }
+
+ /* ----- Lien de partage ----- */
+ async function shareScr(z,from){
+  DZ=z;shareFrom=from||'detail';const c=z.constat||{},act=z.share&&z.share.status==='actif';
+  const role=act?z.share.role:(c._route==='syndic'?'syndic':'voisin');
+  page('share','Faire remplir l’autre partie','Un lien unique, pour une seule personne',top('Retour','back')+`<div class="step"><p class="kicker">Qui doit remplir ?</p>
+   <div class="opts" style="margin-bottom:16px" role="radiogroup" aria-label="Qui doit remplir ?">${[['voisin','Le voisin'],['syndic','Le syndic']].map(([v,l])=>`<label class="opt"><input type="radio" name="accrole" value="${v}"${v===role?' checked':''}><span>${l}</span></label>`).join('')}</div>
+   <div id="accshare"><p class="small">Création du lien…</p></div><div id="accout"></div></div>`);
+  if(act)drawShare();else await mklink(role);
+ }
+ async function mklink(role){
+  const el=$('#accshare');if(el)el.innerHTML='<p class="small">Création du lien…</p>';say('');
+  try{const l=await enqueue(()=>Cloud.createShareLink(DZ.id,role));DZ.share={...l,usedAt:null,status:'actif'};list=null;if(localDz&&localDz.id===DZ.id)localDz=DZ;if(scr==='share')drawShare();try{Stats.ev('lien_partage',{role})}catch(x){}}
+  catch(e){if(el)el.innerHTML='';say(emsg(e),1)}
+ }
+ function shareText(){const s=DZ.share,c=DZ.constat||{},O=s.party==='B'?'A':'B',nom=clean1(c[O+'_nom']);
+  return `Bonjour, voici le constat amiable pour le dégât des eaux${c.date?' du '+fr(c.date):''}${clean1(c.adresse)?' ('+clean1(c.adresse)+')':''}. Merci de remplir votre partie et de signer depuis ce lien, valable jusqu’au ${frT(s.expiresAt)} :\n${s.url}${nom?'\n\n'+nom:''}`}
+ const canShare=()=>!!((NATIVE&&CAP.Plugins&&CAP.Plugins.Share)||navigator.share);
+ function drawShare(){
+  const s=DZ.share,c=DZ.constat||{},txt=encodeURIComponent(shareText()),to=clean1(c[s.party+'_mail']);
+  $('#accshare').innerHTML=`<div class="linkbox" id="acclink">${esc(s.url.replace(/^https:\/\//,''))}</div>
+   <div class="share"><a class="btn pri" href="sms:?body=${txt}">SMS</a><a class="btn pri" href="https://wa.me/?text=${txt}" target="_blank" rel="noopener">WhatsApp</a>
+   <a class="btn" href="mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent('Constat amiable dégât des eaux à compléter')}&body=${txt}">Mail</a><button class="btn" type="button" data-acc="copy">Copier</button></div>
+   ${canShare()?'<button class="btn" type="button" data-acc="nshare" style="margin-top:10px">Envoyer avec une autre appli</button>':''}
+   <div class="msg">Le lien ouvre seulement ce constat, jamais votre historique. Il sert à une seule personne et expire le ${frT(s.expiresAt)}. Vous pouvez l’annuler à tout moment.</div>
+   <button class="btn" type="button" data-acc="sharedone" style="margin-top:12px">Terminé</button>`;
+ }
+ async function copy(b){let ok=false;const url=DZ.share.url;
+  try{await navigator.clipboard.writeText(url);ok=true}catch(e){try{const r=document.createRange();r.selectNodeContents($('#acclink'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);ok=document.execCommand('copy')}catch(x){}}
+  b.textContent=ok?'✓ Lien copié':'Sélectionnez le lien';setTimeout(()=>{if(b.isConnected)b.textContent='Copier'},2500)}
+ async function nshare(){const text=shareText();
+  try{if(NATIVE&&CAP.Plugins&&CAP.Plugins.Share)await CAP.Plugins.Share.share({text,dialogTitle:'Envoyer le lien'});else await navigator.share({text})}catch(e){if(!cancelled(e))say('Partage impossible : utilisez SMS, WhatsApp, Mail ou Copier.',1)}}
+
+ /* ----- Mon compte ----- */
+ async function compte(){
+  if(!user){login('login');return}
+  page('compte','Mon compte',user.email,top('Mes dégâts des eaux','hist')+`<div class="card"><h3>Mes données</h3><p id="accnb">…</p>
+   <div class="stack"><button class="btn" type="button" data-acc="export">Télécharger toutes mes données</button><button class="btn" type="button" data-acc="chemail">Changer d’adresse e-mail</button><button class="btn" type="button" data-acc="logout">Se déconnecter</button></div><div id="accout"></div></div>
+   <div class="card"><h3>Supprimer mon compte</h3><p>Vos constats, déclarations et photos seront effacés du serveur sous 30 jours. Pensez à télécharger vos PDF avant.</p>
+   <div id="accdel"><button class="btn danger" type="button" data-acc="del">Supprimer mon compte</button></div><div id="accout2"></div>
+   <p class="small">Aussi possible sans l’appli : <a href="https://vitfix.fr/supprimer-mon-compte" target="_blank" rel="noopener">vitfix.fr/supprimer-mon-compte</a></p></div>`);
+  try{if(!list)list=await Cloud.listDossiers();const own=list.filter(z=>z.mine),n=own.length,k=own.reduce((t,z)=>t+!!z.constat+!!z.decl+!!z.contest,0);
+   const el=$('#accnb');if(el)el.textContent=`${n} dégât${n>1?'s':''} des eaux, ${k} document${k>1?'s':''}.`}catch(e){}
+ }
+ async function exportAll(b){
+  try{const data=await busy(b,'Préparation…',()=>Cloud.exportData()),txt=JSON.stringify(data,null,1),name='mes-donnees-vitfix-'+today+'.json';
+   if(NATIVE&&CAP.Plugins.Filesystem){try{await CAP.Plugins.Filesystem.writeFile({path:'Constats/'+name,data:txt,directory:'DOCUMENTS',encoding:'utf8',recursive:true});say('Fichier enregistré dans Documents › Constats : '+esc(name)+'.');return}
+    catch(x){const w=await CAP.Plugins.Filesystem.writeFile({path:name,data:txt,directory:'CACHE',encoding:'utf8'});await CAP.Plugins.Share.share({title:name,files:[w.uri],dialogTitle:'Enregistrer mes données'});say('Choisissez où enregistrer le fichier.');return}}
+   const url=URL.createObjectURL(new Blob([txt],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+   say('Fichier « '+esc(name)+' » téléchargé : il contient vos dossiers (constats, déclarations, signatures) et vos liens de partage.')}
+  catch(e){say(cancelled(e)?'Annulé.':emsg(e),!cancelled(e))}
+ }
+
+ /* ----- Côté voisin : ouverture du lien, partie à remplir, envoi ----- */
+ const partDraft=()=>{try{return JSON.parse(lsGet('constatDDE_part')||'{}')||{}}catch(e){return{}}};
+ async function openLink(t){
+  tok=t;info=null;page('load','Constat dégât des eaux','Ouverture du lien…','<div class="card"><p>Ouverture du constat…</p></div>');
+  const dr=partDraft();if(dr._token===t&&dr._done&&dr._final){doneScr(dr._final);return}
+  try{info=await Cloud.openShareLink(t);if(tok===t)landing()}catch(e){if(tok===t)errScr(e)}
+ }
+ function landing(){
+  if(!info){if(tok)openLink(tok);else home();return}
+  const i=info,P=i.party,r=i.resume||{},O=r.partie||'A',nom=clean1(i.declarant)||(i.role==='syndic'?'Un occupant de l’immeuble':'Votre voisin'),a=clean1(i.adresse);
+  const q={loc:'Locataire',prop:r.occ==='nonocc'?'Propriétaire non occupant':'Propriétaire',syndic:'Syndic',gerant:'Gérant de l’immeuble'}[r.qual];
+  const res=[[q,clean1(r.etage)&&'étage '+clean1(r.etage)].filter(Boolean).join(', '),clean1(r.assureur)&&'assureur : '+clean1(r.assureur),clean1(r.contrat)&&'contrat n° '+clean1(r.contrat)].filter(Boolean).join(' · ');
+  page('voisin','Constat dégât des eaux',i.role==='syndic'?'Un occupant de l’immeuble vous demande de remplir votre partie':'Un voisin vous demande de remplir votre partie',
+   `<div class="card"><h3>${esc(nom)} vous a envoyé un constat</h3><p>Dégât des eaux${i.date?' du '+fr(i.date):''}${a?(/^\d/.test(a)?' au ':' — ')+esc(a):''}. Remplissez la partie ${P} et signez : chacun recevra le PDF final.</p>
+   <button class="btn pri" type="button" data-acc="pfill">Voir et remplir ma partie</button><p class="small">Lien valable jusqu’au ${frT(i.expiresAt)}, pour une seule personne.</p></div>
+   <div class="card recap${O}"><h3><span class="tag ${O}">${O}</span>Partie de ${esc(clean1(i.declarant)||'l’autre personne')}</h3><p>${esc(res||'Informations non renseignées.')}</p></div>
+   <div class="card"><h3>Vos données</h3><p style="font-size:14px">Les informations que vous saisissez sont gardées par Vitfix sur un serveur en Europe, pour établir ce constat. Elles sont visibles par ${esc(clean1(i.declarant)||'la personne qui vous a envoyé le lien')} et vous seulement. <a href="${PRIVACY}" target="_blank" rel="noopener">En savoir plus</a></p>
+   ${user?`<p class="small">Vous êtes connecté : ${esc(user.email)}. Ce constat sera aussi visible dans votre compte.</p>`:'<button class="btn" type="button" data-acc="vsignup">Créer un compte (facultatif)</button>'}</div>`);
+ }
+ function errScr(e){
+  const T={expire:['Ce lien a expiré','Un lien de partage est valable 30 jours. Demandez à la personne qui vous l’a envoyé d’en créer un nouveau.'],
+   annule:['Ce lien a été annulé','La personne qui vous l’a envoyé l’a annulé. Demandez-lui un nouveau lien.'],
+   utilise:['Ce constat a déjà été rempli','Ce lien ne sert qu’une seule fois : la partie demandée a déjà été remplie et signée. Pour obtenir le PDF, demandez-le à la personne qui vous a envoyé le lien.'],
+   introuvable:['Lien introuvable','Vérifiez que le lien est complet, ou demandez-en un nouveau à la personne qui vous l’a envoyé.'+(Cloud.simulated?' Mode essai : sans serveur, un lien ne s’ouvre que sur l’appareil où il a été créé.':'')]}[e&&e.code];
+  page('err','Constat dégât des eaux','Lien de partage',`<div class="card"><h3>${T?T[0]:'Le lien ne s’ouvre pas'}</h3><p>${T?T[1]:emsg(e)}</p><button class="btn" type="button" data-acc="home">Aller à l’accueil de l’appli</button></div>`);
+ }
+ function pfill(){
+  if(!info)return;const P=info.party,dr=partDraft();
+  if(dr._token!==tok)lsSet('constatDDE_part',JSON.stringify({...info.prefill,_token:tok,_P:P,adresse:info.adresse||'',le:today}));
+  MODES.part.steps=partSteps(P);MODES.part.sub=`Partie ${P} : vos informations et votre signature`;openForm('part');
+ }
+ async function psend(){
+  const P=d._P,o=$('#out'),er=t=>{if(o){o.innerHTML=`<div class="msg err" role="status">${t}</div>`;o.scrollIntoView({behavior:'smooth',block:'center'})}};
+  if(!clean1(d[P+'_nom'])){er('Indiquez votre nom. <button type="button" class="link" data-go="0">Compléter</button>');return}
+  if(!d['sig'+P]){er(`Il manque votre signature. <button type="button" class="link" data-go="${STEPS.findIndex(x=>x.sign)}">Signer</button>`);return}
+  const nb=$('#next');if(nb.disabled)return;nb.disabled=true;nb.textContent='Envoi…';
+  try{const data={};for(const k in d)if(k.startsWith(P+'_'))data[k]=d[k];
+   const r=await Cloud.submitPartB(d._token,data,{sig:d['sig'+P],sigt:d['sigt'+P]});
+   if(mode==='part'){d._done=1;d._final=r.constat;save()}doneScr(r.constat)}
+  catch(e){if(['expire','annule','utilise','introuvable'].includes(e.code))errScr(e);else er('Envoi impossible : '+emsg(e))}
+  finally{nb.disabled=false;nb.textContent=M().newLabel}
+ }
+ function doneScr(c){
+  fin={...c,mailto:''};const two=c.sigA&&c.sigB;
+  page('done','Constat signé',two?'Signé par les deux parties':'Votre partie est signée',`<div class="card yel"><h3>Merci, votre partie est enregistrée</h3>
+   <p>${two?'Le constat est maintenant signé par les deux parties.':'Votre partie est signée ; l’autre partie n’a pas encore signé.'} Gardez le PDF et envoyez-le à votre assureur dans les 5 jours ouvrés.</p>
+   <div class="stack"><button class="btn pri" type="button" data-acc="fpdf">Enregistrer le PDF</button><button class="btn" type="button" data-acc="fmail">Envoyer par mail (PDF joint)</button></div><div id="accout"></div></div>
+   <button class="btn" type="button" data-acc="home">Aller à l’accueil de l’appli</button>`);
+ }
+ async function finDoc(b,mail){
+  try{say(await busy(b,'Génération…',()=>withDoc('constat',fin,[],async()=>{const bytes=await buildPDF();
+    if(mail)return sendMail(bytes,M().mail(),'Envoyer le constat');
+    if(NATIVE){try{await nativeSave(bytes);return M().saved(fname())}catch(x){await nativeSend(bytes,{...M().mail(),to:''},'Enregistrer le PDF');return'Choisissez où enregistrer le PDF (Fichiers, Drive…).'}}
+    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})))}
+  catch(e){say(cancelled(e)?'Annulé.':'Impossible de terminer : '+emsg(e),!cancelled(e))}
+ }
+
+ /* ----- Retour arrière (lien « ‹ » et bouton retour Android) ----- */
+ function back(){
+  if(scr==='email')return origin==='form'?backToForm():origin==='voisin'?landing():home();
+  if(scr==='code')return emailScr();
+  if(scr==='detail'||scr==='compte')return hist();
+  if(scr==='share')return shareFrom==='form'?backToForm():detail(DZ.id);
+  return home();
+ }
+ async function act(a,b){
+  try{switch(a){
+   case'signup':case'login':login(a);break;
+   case'rsignup':login('signup',{t:'form'});break;
+   case'vsignup':login('signup',{t:'voisin'});break;
+   case'rno':try{localStorage.setItem('constatDDE_nocompte','1')}catch(e){}drawCards();break;
+   case'rshare':if(!user){login('signup',{t:'share'});break}
+    {const r=await busy(b,'Un instant…',()=>enqueue(()=>push('constat',true)));if(r)await shareScr(r.dz,'form')}break;
+   case'back':back();break;case'home':home();break;case'hist':await hist();break;case'compte':await compte();break;
+   case'new':goHome();{const c=document.querySelector('#home .choix');if(c)c.closest('.step').scrollIntoView({behavior:'smooth'})}break;
+   case'open':await detail(b.dataset.id);break;
+   case'resend':say('');await busy(b,'Envoi…',()=>Cloud.requestCode(em));say('Nouveau code envoyé à '+esc(em)+'.');break;
+   case'chmail':emailScr();break;
+   case'reshare':await shareScr(DZ,'detail');break;
+   case'revoke':say(`Annuler ce lien ? ${DZ.share.role==='syndic'?'Le syndic':'Le voisin'} ne pourra plus l’ouvrir.<div class="actions"><button class="btn danger" type="button" data-acc="revoke2">Oui, annuler le lien</button><button class="btn" type="button" data-acc="nothing">Non, le garder</button></div>`);break;
+   case'revoke2':await busy(b,'Annulation…',()=>Cloud.revokeShareLink(DZ.share.token));list=null;await detail(DZ.id);break;
+   case'nothing':say('');break;
+   case'resume':await resume();break;case'resume2':await busy(b,'Un instant…',()=>resume(b.dataset.step===''?null:+b.dataset.step,true));break;
+   case'photos':await resume(CSTEPS.findIndex(x=>x.photos));break;
+   case'todecl':openForm('decl');break;
+   case'pdf':await pdf(b.dataset.m,b);break;case'send':await send(b);break;
+   case'copy':await copy(b);break;case'nshare':await nshare();break;case'sharedone':await detail(DZ.id);break;
+   case'export':await exportAll(b);break;
+   case'chemail':say('Bientôt disponible. En attendant, téléchargez vos données puis créez un compte avec la nouvelle adresse.');break;
+   case'logout':await busy(b,'Déconnexion…',()=>Cloud.signOut());user=null;localDz=null;list=null;flash='Vous êtes déconnecté. Vos constats restent dans votre compte.';home();break;
+   case'del':$('#accdel').innerHTML=`<div class="opts"><label class="opt wide"><input type="checkbox" id="accdelok"><span>Je veux effacer définitivement mon compte et tous mes dossiers</span></label></div>
+     <div class="stack" style="margin-top:10px"><button class="btn danger" type="button" data-acc="del2" disabled>Supprimer définitivement</button><button class="btn" type="button" data-acc="delno">Annuler</button></div>`;break;
+   case'delno':$('#accdel').innerHTML='<button class="btn danger" type="button" data-acc="del">Supprimer mon compte</button>';say('',0,'accout2');break;
+   case'del2':if(!$('#accdelok')||!$('#accdelok').checked)break;await busy(b,'Suppression…',()=>Cloud.deleteAccount());user=null;unstamp();
+    flash='Votre compte a été supprimé. Ce qui est sur ce téléphone n’a pas été effacé.';home();break;
+   case'pfill':pfill();break;
+   case'fpdf':await finDoc(b,false);break;case'fmail':await finDoc(b,true);break;
+  }}catch(e){say(emsg(e),1,a==='del2'?'accout2':'accout')}
+ }
+ document.addEventListener('click',e=>{const b=e.target.closest('[data-acc]');if(b&&!b.disabled)act(b.dataset.acc,b)});
+ document.addEventListener('submit',e=>{const f=e.target.dataset&&e.target.dataset.accform;if(f){e.preventDefault();submit(f,e.target)}});
+ document.addEventListener('input',e=>{if(e.target.id==='acc-mail')say('');if(e.target.id!=='acc-code')return;if(paintCode().length===6)submit('code',e.target.form);else say('')});
+ document.addEventListener('change',e=>{
+  if(e.target.name==='accrole'&&scr==='share')mklink(e.target.value);
+  if(e.target.id==='accdelok'){const b=C().querySelector('[data-acc="del2"]');if(b)b.disabled=!e.target.checked}});
+ async function init(){try{user=await Cloud.currentUser()}catch(e){user=null}homeCard();if(view==='form'){drawCards();if(STEPS[cur].recap)onRecap()}}
+ const flush=()=>enqueue(()=>push('constat')).catch(()=>{});
+ return {init,homeCard,cards,onRecap,sent,flush,openLink,landing,psend,back,get user(){return user}};
+})();
 
 setMode(mode);
 /* Ouverture avec ?mode=… (liens du site vitfix.fr) : directement le formulaire ; sinon l'accueil */
 let fromLink=false;try{fromLink=!!new URLSearchParams(location.search).get('mode')}catch(e){}
-if(fromLink)showView('form');else goHome();
+/* Ouverture avec #p=<jeton> : lien de partage reçu par le voisin ou le syndic */
+const tok0=tokFromHash();
+if(tok0)Acc.openLink(tok0);else if(fromLink)showView('form');else goHome();
+Acc.init();
+window.addEventListener('hashchange',()=>{const t=tokFromHash();if(t)Acc.openLink(t)});
 Stats.init();
 window.addEventListener('resize',()=>{if(STEPS[cur].sign)STEPS[cur].sign.forEach(setupSig)});
 window.__cdde={build:()=>buildPDF(),letter:()=>dletter(),cletter:()=>cletter(),setMode};
 
 /* Bouton retour Android = étape précédente ; à la 1re étape ou sur la 2e page, retour à l'accueil ; quitte l'appli depuis l'accueil */
 if(NATIVE&&CAP.Plugins.App){
- CAP.Plugins.App.addListener('backButton',()=>{if(view==='form'&&cur>0){cur--;render()}else if(view!=='home')goHome();else CAP.Plugins.App.exitApp()});
+ CAP.Plugins.App.addListener('backButton',()=>{if(view==='cloud')Acc.back();else if(view==='form'&&cur>0){cur--;render()}else if(view==='form'&&mode==='part')Acc.landing();else if(view!=='home')goHome();else CAP.Plugins.App.exitApp()});
 }
 if(NATIVE&&CAP.Plugins.SplashScreen)CAP.Plugins.SplashScreen.hide();
 }
