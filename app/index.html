@@ -383,7 +383,7 @@ const DSTEPS=[
  {t:'Récapitulatif et envoi',recap:1,fields:[]}
 ];
 /* ---------- Contestation de l'indemnisation (3e document) ---------- */
-const CMOT=[['montant','Indemnisation trop faible'],['refus','Refus de garantie'],['vetuste','Vétusté ou franchise contestée'],['retard','Indemnisation qui tarde'],['autre','Autre désaccord']];
+const CMOT=[['montant','Indemnisation trop faible'],['devis','Chiffrage de l’expert plus bas que le devis de l’artisan'],['refus','Refus de garantie'],['vetuste','Vétusté ou franchise contestée'],['retard','Indemnisation qui tarde'],['autre','Autre désaccord']];
 const CTSTEPS=[
  {t:'Le désaccord',fromdecl:1,fields:[
   {k:'motif',l:'Que contestez-vous ?',ty:'radio',o:CMOT},
@@ -400,8 +400,10 @@ const CTSTEPS=[
   {row:[{k:'contrat',l:'Votre numéro de contrat',ty:'text'},{k:'sinistre',l:'Votre numéro de sinistre',ty:'text'}]}]},
  {t:'La position de l’assureur',fields:[
   {k:'decdate',l:'Date du courrier ou du rapport de l’assureur',ty:'date',if:x=>x.motif!=='retard'},
-  {row:[{k:'propose',l:'Indemnité proposée (€)',ty:'text'},{k:'estime',l:'Montant que vous réclamez (€)',ty:'text'}],if:x=>x.motif!=='refus'},
-  {k:'base',l:'Sur quoi repose votre montant ?',ty:'text',h:'Ex. : devis de l’entreprise X du 10/11, factures d’achat, estimation d’un expert.',if:x=>x.motif!=='refus'},
+  {row:[{k:'propose',l:'Indemnité proposée (€)',ty:'text'},{k:'estime',l:'Montant que vous réclamez (€)',ty:'text'}],if:x=>x.motif!=='refus'&&x.motif!=='devis'},
+  {k:'base',l:'Sur quoi repose votre montant ?',ty:'text',h:'Ex. : devis de l’entreprise X du 10/11, factures d’achat, estimation d’un expert.',if:x=>x.motif!=='refus'&&x.motif!=='devis'},
+  {row:[{k:'propose',l:'Montant retenu par l’expert (€)',ty:'text'},{k:'estime',l:'Montant du devis de l’artisan (€)',ty:'text'}],if:x=>x.motif==='devis'},
+  {row:[{k:'devisent',l:'Entreprise qui a fait le devis',ty:'text'},{k:'devisdate',l:'Date du devis',ty:'date'}],if:x=>x.motif==='devis'},
   {k:'refusmotif',l:'Motif du refus invoqué par l’assureur',ty:'text',h:'Ex. : « défaut d’entretien », « exclusion », « déclaration tardive ».',if:x=>x.motif==='refus'},
   {k:'justifdate',l:'Date d’envoi de vos derniers justificatifs',ty:'date',if:x=>x.motif==='retard'},
   {k:'expert',l:'Un expert de l’assurance est-il passé ?',ty:'radio',o:YN},
@@ -432,10 +434,13 @@ function cletter(){
  const exp=x.expert==='oui'?`, sur la base du rapport de l’expert${c(x.expertnom)?' '+c(x.expertnom):''}${x.expertdate?' (expertise du '+fr(x.expertdate)+')':''}`:'';
  if(x.motif==='refus')P.push(`Par courrier du ${fr(x.decdate)||'...'}, vous avez refusé votre garantie${c(x.refusmotif)?' au motif suivant : « '+c(x.refusmotif)+' »':''}${exp}. Je conteste ce refus.`);
  else if(x.motif==='retard')P.push(`Malgré l’envoi de l’ensemble des justificatifs demandés${x.justifdate?' le '+fr(x.justifdate):''}, je n’ai toujours reçu aucune indemnisation${num(x.propose)?` (montant proposé : ${mt(x.propose)})`:''}${exp}. Je vous rappelle que l’assureur doit exécuter sa prestation dans le délai convenu (article L113-5 du Code des assurances).`);
+ else if(x.motif==='devis'){const gap=num(x.estime)&&num(x.propose)&&num(x.estime)>num(x.propose)?`, soit un écart de ${eur(num(x.estime)-num(x.propose))}`:'';
+  P.push(`Par courrier du ${fr(x.decdate)||'...'}, vous m’avez proposé une indemnisation de ${mt(x.propose)}${exp}. Ce montant est inférieur au devis de remise en état établi par ${c(x.devisent)||'l’entreprise ...'}${x.devisdate?' le '+fr(x.devisdate):''}, d’un montant de ${mt(x.estime)}${gap}. Ce devis, joint à la présente, correspond au coût réel des travaux nécessaires pour remettre mon logement dans l’état où il se trouvait avant le sinistre. Avec l’indemnité proposée, je ne peux pas faire réaliser ces travaux.`)}
  else P.push(`Par courrier du ${fr(x.decdate)||'...'}, vous m’avez proposé une indemnisation de ${mt(x.propose)}${exp}${x.motif==='vetuste'?', après application d’une vétusté ou d’une franchise que je conteste':''}. Cette somme ne couvre pas les préjudices subis, que j’évalue à ${mt(x.estime)}${c(x.base)?' ('+c(x.base)+')':''}.`);
  if(c(x.args))P.push(String(x.args).trim().replace(/\.?\s*$/,'.'));
  const dem=x.demande||'reexamen';
  if(dem!=='contre')P.push(x.motif==='refus'?'Je vous demande en conséquence de réexaminer mon dossier et d’accorder votre garantie.':`Je vous demande en conséquence de réexaminer mon dossier${num(x.estime)?` et de porter l’indemnisation à ${mt(x.estime)}`:''}.`);
+ if(x.motif==='devis'&&dem!=='contre')P.push('À défaut, je vous demande d’organiser une nouvelle visite de l’expert, en présence de l’entreprise qui a établi le devis, afin d’examiner poste par poste les points de désaccord.');
  if(dem!=='reexamen')P.push('Je vous informe de mon intention de faire procéder à une contre-expertise, et vous demande de me communiquer la copie complète du rapport d’expertise. Le cas échéant, je demande la mise en œuvre de la procédure d’expertise contradictoire prévue par mon contrat.');
  P.push(`Je vous remercie de me répondre dans un délai de ${x.cdelai||'30'} jours. À défaut de réponse satisfaisante, je saisirai la Médiation de l’assurance, puis, si nécessaire, la juridiction compétente.`);
  if(photos.length)P.push(`${photos.length} pièce${photos.length>1?'s':''} justificative${photos.length>1?'s':''} figure${photos.length>1?'nt':''} en annexe.`);
