@@ -633,15 +633,16 @@ function recapHTML(){
   <button type="button" class="btn pri" id="mail">Envoyer par mail (PDF joint)</button>
   <button type="button" class="btn" id="dl">Enregistrer le PDF</button>
   <p class="mailbox" id="mailinfo">${NATIVE?M().mailInfo:'Le PDF est joint si votre navigateur le permet ; sinon, enregistrez-le puis joignez-le au mail.'}</p>
- </div>${M().recapAfter?M().recapAfter():''}${Agenda.html(reminders())}${lrarHTML()}${devisHTML()}<div id="out"></div>`;
+ </div>${mode==='decl'?lrarHTML()+devisHTML():''}${M().recapAfter?M().recapAfter():''}${Agenda.html(reminders())}${mode==='decl'?'':lrarHTML()+devisHTML()}<div id="out"></div>`;
 }
 /* Envoi en recommandé avec AR par un service en ligne (déclaration et contestation ; l'utilisateur paie sur le site du service) */
 const LRAR_LINKS=[['La Poste','https://www.laposte.fr/envoi-courrier-en-ligne'],['Merci Facteur','https://www.merci-facteur.com/lettres/lrar/lettre-recommandee.php']];
 const lrarAddr=()=>[d.assureur,...String(d.assadr||'').split(/\n/)].map(clean1).filter(Boolean).join('\n');
 function lrarHTML(){
  if(mode!=='decl'&&mode!=='contest')return '';const a=lrarAddr();
- return `<div class="note lrar" style="margin-top:16px"><p><b>📮 Envoyer en recommandé avec AR, sans vous déplacer</b></p>
-<p>Un service en ligne imprime votre lettre, la poste en <b>recommandé avec accusé de réception</b> et vous renvoie la preuve de dépôt puis l’accusé de réception. Comptez environ 7 à 9 € pour une lettre d’une page (un peu plus avec les photos), à payer sur leur site.</p>
+ const why=mode==='decl'?`<p><b>Pourquoi le recommandé ?</b></p><ul style="margin:0 0 8px;padding-left:20px"><li><b>Vous prouvez la date d’envoi</b> : vous respectez le délai pour déclarer (5 jours ouvrés pour un dégât des eaux, art. L113-2 du Code des assurances).</li><li><b>Vous prouvez la réception</b> : l’accusé de réception montre que l’assureur a bien reçu votre déclaration et le constat.</li><li><b>Votre dossier est suivi</b> : en cas de retard, de perte ou de désaccord, vous avez les preuves en main.</li></ul><p style="font-size:13px;color:var(--mute)">Le mail ou l’espace client sont possibles, mais ils ne donnent pas la même preuve.</p>`:'';
+ return `<div class="note lrar" style="margin-top:16px${mode==='decl'?';border:2px solid var(--ink)':''}"><p><b>📮 ${mode==='decl'?'Conseillé : envoyez votre déclaration en recommandé avec AR':'Envoyer en recommandé avec AR, sans vous déplacer'}</b></p>${why}
+<p>${mode==='decl'?'Sans vous déplacer : un':'Un'} service en ligne imprime votre lettre, la poste en <b>recommandé avec accusé de réception</b> et vous renvoie la preuve de dépôt puis l’accusé de réception. Comptez environ 7 à 9 € pour une lettre d’une page (un peu plus avec les photos), à payer sur leur site.</p>
 <ol style="margin:6px 0 8px;padding-left:20px"><li>Enregistrez le PDF de votre lettre.</li><li>Ouvrez un service ci-dessous et envoyez-y le PDF.</li><li>Indiquez l’adresse de l’assureur${a?' (à copier ci-dessous)':''}.</li></ol>
 ${a?`<pre id="lrar-addr" style="white-space:pre-wrap;font:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 8px">${esc(a)}</pre><button type="button" class="btn" id="lrar-copy" style="width:100%;margin-bottom:8px">Copier l’adresse de l’assureur</button>`:''}
 <button type="button" class="btn pri" id="lrar-dl" style="width:100%;margin-bottom:8px">1. Enregistrer le PDF</button>
@@ -695,6 +696,11 @@ function reminders(){
  return L;
 }
 function devisHTML(){
+ if(mode==='decl'&&d.type==='dde')return `<section class="devis" style="border:2px solid var(--ybord)"><h3>Des dommages chez vous ? Un artisan partenaire vient faire le devis</h3>
+  <p>Peintures, papiers peints, plafonds, sols abîmés par l’eau : un artisan partenaire de ${esc(PARTNER.nom)} se déplace chez vous pour établir le <b>devis des embellissements</b>, à faire une fois la fuite réparée.</p>
+  <p>Joignez ce devis à votre déclaration : l’assureur s’en sert pour calculer votre indemnisation. Vous pouvez l’envoyer avec la déclaration ou juste après.</p>
+  <button type="button" class="btn pri" data-devis="D">Demander la visite d’un artisan partenaire</button>
+  <p style="font-size:12.5px;color:var(--mute);margin:0">La demande part par mail avec votre déclaration${photos.length?' et les photos':''} ; vous la relisez et l’envoyez vous-même.</p></section>`;
  if(mode==='decl'||mode==='contest'){if(!clean1(d.dombat||d.args)||isVol(d))return '';
   return `<section class="devis"><h3>Besoin d’une entreprise pour chiffrer la remise en état ?</h3>
   <p>L’assureur demande souvent un devis. ${esc(PARTNER.nom)}, entreprise partenaire, peut l’établir. La demande part par mail avec votre déclaration${photos.length?' et les photos':''} en pièce jointe ; vous la relisez et l’envoyez vous-même.</p>
@@ -988,7 +994,7 @@ const MODES={
   mailInfo:'Choisissez Gmail ou Outlook dans la liste : la déclaration en PDF est jointe automatiquement.',
   saved:n=>'PDF enregistré dans Documents › Declarations : '+esc(n)+'.',
   recapBefore:()=>{const l=dletter();return `<div class="note"><p><b>Aperçu de la lettre</b></p><p><b>Objet : ${esc(l.objet)}</b></p>${l.paras.map(p=>p.table?`<p>${esc(p.intro)}</p><ul style="margin:0 0 8px;padding-left:20px">${p.table.map(it=>`<li>${esc(clean1(it.des)||'Bien')}${num(it.val)?' — '+esc(eur(num(it.val))):''}</li>`).join('')}</ul>`:`<p>${esc(p)}</p>`).join('')}<p style="font-size:13px;color:var(--mute)">Pour modifier le texte, revenez aux étapes précédentes.</p></div>`},
-  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pour garder une preuve de la date :</b> envoyez la déclaration par mail à votre assureur ou par l’espace client, ou imprimez-la et envoyez-la en <b>lettre recommandée avec accusé de réception</b>. Joignez le récépissé de plainte, le constat amiable et les factures si vous les avez.</p></div><section class="devis" style="margin-top:12px"><h3>Plus tard : l’indemnisation ne vous convient pas ?</h3><p>Montant trop faible, refus de garantie ou paiement qui tarde : préparez une lettre de contestation pour votre assureur.</p><button type="button" class="btn" data-open="contest">Contester l’indemnisation</button></section>`,
+  recapAfter:()=>`<div class="note" style="margin-top:16px"><p><b>Pièces à joindre :</b> le constat amiable (déjà dans le PDF pour un dégât des eaux), le devis de remise en état, les factures des biens abîmés et, pour un vol, le récépissé de plainte.</p></div><section class="devis" style="margin-top:12px"><h3>Plus tard : l’indemnisation ne vous convient pas ?</h3><p>Montant trop faible, refus de garantie ou paiement qui tarde : préparez une lettre de contestation pour votre assureur.</p><button type="button" class="btn" data-open="contest">Contester l’indemnisation</button></section>`,
   build:()=>buildDeclFull(),fname:()=>{const n=clean1(d.nom).split(' ').pop()||'';return `Declaration_sinistre_${d.date||today}${n?'_'+n.replace(/[^\wÀ-ÿ-]/g,''):''}.pdf`},mail:()=>declMail()},
  contest:{key:'contestIndem_v1',steps:CTSTEPS,title:'Contester l’indemnisation',sub:'Indemnité trop faible, refus de garantie, contre-expertise',letter:()=>cletter(),
   newLabel:'Nouvelle contestation',folder:'Contestations',mailPh:'service sinistres ou réclamations de l’assureur',
@@ -1023,7 +1029,7 @@ function mailParts(){
 /* Demande de devis à l'entreprise partenaire, pour une partie qui a subi des dommages */
 function devisParts(P){
  if(P==='D'){const g=k=>clean1(d[k]);
-  const body=[`Bonjour,`,``,`Suite à un sinistre (${tlab(d)}${d.date?' survenu le '+fr(d.date):''}), je souhaite un devis pour la remise en état des dommages.`,``,
+  const body=[`Bonjour,`,``,`Suite à un sinistre (${tlab(d)}${d.date?' survenu le '+fr(d.date):''}), ${mode==='decl'&&d.type==='dde'?'je souhaite qu’un artisan se déplace pour établir un devis de remise en état (embellissements : peintures, revêtements, plafonds, sols).':'je souhaite un devis pour la remise en état des dommages.'}`,``,
    `Nom : ${g('nom')||'…'}`,`Adresse : ${g('lieu')||g('adr')||'…'}`,`Téléphone : ${g('tel')||'…'}`,`Mail : ${g('mail')||'…'}`,
    `Dommages : ${g('dombat')||g('args')||'non précisés'}`,`Assureur : ${g('assureur')||'…'}${g('sinistre')?' (sinistre n° '+g('sinistre')+')':''}`,``,
    `${mode==='contest'?'Ma contestation':'Ma déclaration de sinistre'}${photos.length?` (avec ${photos.length} photo${photos.length>1?'s':''} en annexe)`:''} est en pièce jointe.`,``,`Cordialement,`,g('nom')].join('\n');
