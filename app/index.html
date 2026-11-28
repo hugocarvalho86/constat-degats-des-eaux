@@ -1572,9 +1572,9 @@ const Acc=(()=>{
   if(z.contest)docs+=row('Contestation de l’indemnisation',pdf('contest'));
   if(z.photos)docs+=row(`Photos (${z.photos})`,'<button type="button" class="link" data-acc="photos">Voir</button>');
   let next='';
-  if(z.mine&&z.constat&&c.date){const lim=ouvres(c.date,5),late=lim<today;
-   next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Constat envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF.</p><button class="btn" type="button" data-acc="send">Renvoyer à mon assureur</button><div id="accout3"></div></div>`
-    :`<div class="card yel"><h3>Prochaine étape</h3><p>${late?`Le délai de 5 jours ouvrés est passé depuis le ${frL(lim)} : envoyez le constat à votre assureur dès que possible.`:`Envoyez le constat à votre assureur avant le ${frL(lim)} (5 jours ouvrés).`}</p><button class="btn pri" type="button" data-acc="send">Envoyer à mon assureur</button><div id="accout3"></div></div>`}
+  if(z.mine&&z.constat&&c.date){const lim=ouvres(c.date,5),late=lim<today,full=both(z),qui=z.share?roleL(z.share.role):'l’autre partie';
+   next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Constat envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF.${full?'':` Dès que ${qui} aura signé, renvoyez le constat complet à votre assureur.`}</p><button class="btn" type="button" data-acc="send">Renvoyer à mon assureur</button><div id="accout3"></div></div>`
+    :`<div class="card yel"><h3>Prochaine étape</h3><p>${late?`Le délai de 5 jours ouvrés est passé depuis le ${frL(lim)} : envoyez le constat à votre assureur dès que possible.`:`Envoyez le constat à votre assureur avant le ${frL(lim)} (5 jours ouvrés).`}${full?'':`</p><p>L’idéal est d’envoyer le constat rempli et signé par les deux. Mais si ${qui} n’a pas encore signé, n’attendez pas : envoyez-le quand même dans le délai, puis renvoyez-le complet dès qu’il aura signé.`}</p><button class="btn pri" type="button" data-acc="send">Envoyer à mon assureur</button><div id="accout3"></div></div>`}
   $('#ttl').textContent=dt?'Dégât du '+frL(dt):'Dégât des eaux';$('#sub').textContent=adr(z);document.title=$('#ttl').textContent;
   C().innerHTML=top('Mes dégâts des eaux','hist')+`<div class="card">${st}${btn?`<div class="stack">${btn}</div>`:''}<div id="accout"></div></div>
    <div class="card"><h3>Documents</h3>${docs||'<p>Aucun document.</p>'}<div id="accout2"></div></div>${next}`;
