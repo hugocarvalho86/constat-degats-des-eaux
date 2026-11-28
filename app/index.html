@@ -76,6 +76,12 @@ nav .in{max-width:640px;width:100%;display:flex;gap:10px}
 .ph img{display:block;width:100%;max-height:260px;object-fit:cover;background:#000}
 .ph figcaption{display:flex;gap:6px;align-items:center;padding:8px}
 .ph figcaption input{flex:1}
+.ph figcaption.ro{font-size:14px;padding:10px 12px}
+.thumbs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.thumbs figure{margin:0;min-width:0}
+.thumbs img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:1px solid var(--line);background:#000}
+.thumbs figcaption{font-size:12px;color:var(--mute);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.phlinks{display:grid;gap:8px;margin-top:8px;font-size:14px}
 .phadd{display:grid;gap:10px}
 .phbtn{display:flex;align-items:center;justify-content:center;text-align:center;padding:0 12px}
 .modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px;margin:0 0 14px}
@@ -516,6 +522,8 @@ function assFromMe(){
 const IDBS={constat:mkIDB('constatDDE'),decl:mkIDB('declSinistre'),contest:mkIDB('contestIndem'),
  /* Partie remplie depuis un lien de partage : pas de photos */
  part:{all:async()=>[],put:async()=>{},del:async()=>{},clear:async()=>{}}};
+/* Photos reçues par un lien de partage (lecture seule), gardées sur l'appareil de la partie invitée pour son PDF final */
+const PIDB=mkIDB('constatDDE_part_photos');
 let IDB=IDBS.constat;
 const purl=p=>{if(!purls.has(p.id))purls.set(p.id,URL.createObjectURL(p.blob));return purls.get(p.id)};
 async function shrink(file){
@@ -543,6 +551,7 @@ document.addEventListener('change',async e=>{
 });
 document.addEventListener('input',e=>{const id=e.target.dataset.cap;if(!id)return;const p=photos.find(x=>x.id===id);if(p){p.cap=e.target.value;IDB.put(p).catch(()=>{})}});
 document.addEventListener('click',e=>{const b=e.target.closest('[data-delph]');if(!b)return;const id=b.dataset.delph;
+ {const p=photos.find(x=>x.id===id);if(p&&p.rid)Acc.photoGone(p)}
  photos=photos.filter(x=>x.id!==id);if(purls.has(id)){URL.revokeObjectURL(purls.get(id));purls.delete(id)}IDB.del(id).catch(()=>{});keepScroll()});
 function has(x,k,v){return Array.isArray(x[k])&&x[k].includes(v)}
 
@@ -1158,7 +1167,7 @@ document.addEventListener('click',e=>{
    Schéma prévu côté Supabase (rien n'est branché ici : aucune clé, aucune URL de projet, aucune bibliothèque) :
    - Connexion : code OTP à 6 chiffres par e-mail, sans mot de passe (requestCode = signInWithOtp, verifyCode = verifyOtp).
    - Table dossiers : id uuid (clé primaire, créé par l'appli), owner_id uuid → auth.users (suppression en cascade), guest_id uuid null
-     (partie invitée qui a un compte), constat jsonb, decl jsonb, contest jsonb, photos int, sent_at timestamptz, part_b_at timestamptz,
+     (partie invitée qui a un compte), constat jsonb, decl jsonb, contest jsonb, photos int (nombre de photos, tenu à jour par un déclencheur sur la table photos), sent_at timestamptz, part_b_at timestamptz,
      part_b_party text ('A' ou 'B'), created_at, updated_at.
      RLS : le propriétaire (owner_id = auth.uid()) lit, crée, modifie et supprime ses lignes ; l'invité (guest_id = auth.uid()) peut seulement les lire.
    - Table share_links : token text (clé primaire, au moins 128 bits aléatoires ; idéalement seule son empreinte SHA-256 est gardée),
@@ -1168,8 +1177,21 @@ document.addEventListener('click',e=>{
    - Fonctions RPC « security definer », appelables sans compte : open_share_link(token) ne renvoie que l'adresse, la date, le nom du déclarant
      et le résumé de sa partie, et seulement si le lien est actif ; submit_part_b(token, data, signature) écrit la partie invitée et marque used_at
      (usage unique), dans une seule transaction.
-   - Photos : bucket Storage privé photos/<owner_id>/<dossier_id>/…, accessible au seul propriétaire (en simulation, les photos restent sur le téléphone).
-   - Suppression du compte : fonction Edge qui supprime l'utilisateur (cascade sur dossiers et share_links). Export : lecture des lignes du propriétaire. */
+   - Photos : bucket Storage PRIVÉ « photos », un fichier par photo au chemin <user_id>/<dossier_id>/<photo_id>.jpg. Les photos sont déjà réduites
+     par l'appli avant l'envoi (JPEG, 1600 px au plus grand côté, qualité 0,8) ; 10 photos au plus par dossier, 4 Mo au plus par fichier
+     (limite du bucket + types autorisés : image/jpeg).
+     Table photos : id uuid (clé primaire, = <photo_id>), dossier_id uuid → dossiers (cascade), owner_id uuid, caption text, size int, width int,
+     height int, taken_at timestamptz, created_at. RLS : le propriétaire lit, crée, modifie et supprime ; l'invité du dossier (guest_id) lit seulement.
+     Règles du bucket (storage.objects) : lecture, écriture et suppression seulement si le 1er dossier du chemin = auth.uid() ; aucune règle
+     pour le rôle anonyme, donc aucune URL publique. La limite de 10 est vérifiée par un déclencheur avant insertion dans la table photos.
+     Lecture par la partie invitée (sans compte) : fonction Edge get_shared_photo(token, photo_id) qui vérifie que le jeton est actif
+     (ni annulé, ni utilisé, ni expiré) et que la photo appartient bien au dossier du lien, puis renvoie le fichier (ou une URL signée de 60 s),
+     avec la clé de service gardée côté serveur. open_share_link(token) renvoie aussi la liste (id, légende, taille) des photos, sans chemin.
+     Suppression : supprimer une photo efface la ligne et le fichier ; supprimer un dossier ou le compte efface d'abord les fichiers
+     <user_id>/<dossier_id>/* (fonction Edge), puis les lignes par cascade.
+     Simulation : les fichiers sont dans une base IndexedDB à part, constatDDE_cloudsim_photos (localStorage est trop petit).
+   - Suppression du compte : fonction Edge qui supprime les fichiers du bucket puis l'utilisateur (cascade sur dossiers, photos et share_links).
+     Export : lecture des lignes du propriétaire, liste des photos comprise ; chaque fichier se télécharge ensuite un par un. */
 const Cloud=(()=>{
  const PX='constatDDE_cloudsim_',CODE='123456',BASE='https://vitfix.fr/app/#p=',JOURS=30,DELAI=300;
  const E=(code,message)=>Object.assign(new Error(message),{code});
@@ -1192,9 +1214,25 @@ const Cloud=(()=>{
  const out=(z,u)=>({...z,mine:z.ownerId===u.id,share:z.ownerId===u.id?shareOf(z.id):null});
  const link=t=>{const l=rd('links',{})[String(t||'')];if(!l)throw E('introuvable','Ce lien n’existe pas.');const s=lstat(l);
   if(s==='annule')throw E('annule','Ce lien a été annulé.');if(s==='utilise')throw E('utilise','Ce lien a déjà servi.');if(s==='expire')throw E('expire','Ce lien a expiré.');return l};
+ /* Photos (simulation du bucket Storage) : base IndexedDB à part, une ligne par photo, clé <dossier_id>/<photo_id>.
+    La base n'est ouverte qu'après vérification du compte ou du jeton : sans compte, rien n'est créé. */
+ const MAXPH=10,MAXOCT=4e6;let pdb=null;
+ const pstore=async(m,f)=>{
+  const x=await(pdb||(pdb=new Promise((res,rej)=>{const r=indexedDB.open(PX+'photos',1);r.onupgradeneeded=()=>r.result.createObjectStore('photos',{keyPath:'key'});
+   r.onsuccess=()=>res(r.result);r.onerror=()=>{pdb=null;rej(E('stockage','Le stockage des photos est indisponible sur cet appareil.'))}})));
+  return new Promise((res,rej)=>{const t=x.transaction('photos',m),r=f(t.objectStore('photos'));t.oncomplete=()=>res(r&&r.result);
+   t.onerror=t.onabort=()=>rej(E('stockage','Enregistrement de la photo impossible : le stockage est plein ou bloqué.'))})};
+ const wait=(ms=150)=>new Promise(r=>setTimeout(r,ms));
+ const pid=v=>{v=String(v||'');if(!/^[\w-]{1,64}$/.test(v))throw E('introuvable','Photo introuvable.');return v};
+ const pall=async id=>((await pstore('readonly',s=>s.getAll(IDBKeyRange.bound(id+'/',id+'/\uffff'))))||[]).sort((a,b)=>a.t-b.t);
+ const pmeta=r=>({id:r.id,cap:r.cap||'',size:r.size,w:r.w||0,h:r.h||0,t:r.t,createdAt:r.createdAt});
+ const pcount=(id,n)=>{const ds=rd('dossiers',{});if(ds[id]){ds[id].photos=n;wr('dossiers',ds)}};
+ /* Dossier du compte connecté ; guest : la partie invitée qui a un compte peut lire */
+ const dzOf=(id,guest)=>{const u=me(),z=rd('dossiers',{})[id];if(!z||(z.ownerId!==u.id&&!(guest&&z.guestId===u.id)))throw E('introuvable','Dossier introuvable.');return z};
  const api={
   simulated:true,
   newId,
+  maxPhotos:MAXPH,
   /* Envoie un code à 6 chiffres à l'adresse (simulation : rien n'est envoyé, le code est toujours 123456) */
   requestCode(email){return rpc(()=>{const e=norm(email);if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e))throw E('email','Cette adresse e-mail ne semble pas correcte.');
    const o=rd('otp',{});o[e]={expiresAt:new Date(Date.now()+6e5).toISOString()};wr('otp',o);return{email:e,expiresAt:o[e].expiresAt}})},
@@ -1208,19 +1246,44 @@ const Cloud=(()=>{
   /* Session gardée sur l'appareil : réponse immédiate, sans réseau */
   currentUser(){return Promise.resolve().then(()=>cp(meOrNull()))},
   signOut(){return rpc(()=>{try{localStorage.removeItem(PX+'session')}catch(e){}return true},100)},
-  deleteAccount(){return rpc(()=>{const u=me(),ds=rd('dossiers',{}),ls=rd('links',{}),us=rd('users',{});
+  /* Efface le compte, ses dossiers, ses liens et ses photos */
+  async deleteAccount(){const u0=me();
+   try{await pstore('readwrite',s=>{s.openCursor().onsuccess=e=>{const c=e.target.result;if(c){if(c.value.ownerId===u0.id)c.delete();c.continue()}}})}
+   catch(e){if(Object.values(rd('dossiers',{})).some(z=>z.ownerId===u0.id&&z.photos))throw e}
+   return rpc(()=>{const u=me(),ds=rd('dossiers',{}),ls=rd('links',{}),us=rd('users',{});
    for(const id in ds){if(ds[id].ownerId===u.id){delete ds[id];for(const t in ls)if(ls[t].dossierId===id)delete ls[t]}else if(ds[id].guestId===u.id)ds[id].guestId=null}
    delete us[u.email];wr('dossiers',ds);wr('links',ls);wr('users',us);try{localStorage.removeItem(PX+'session')}catch(e){}return true})},
-  exportData(){return rpc(()=>{const u=me(),ds=Object.values(rd('dossiers',{})).filter(z=>z.ownerId===u.id),ids=new Set(ds.map(z=>z.id));
-   return{exporteLe:now(),compte:{email:u.email,creeLe:u.createdAt},dossiers:ds,liensDePartage:Object.values(rd('links',{})).filter(l=>ids.has(l.dossierId))}})},
+  /* Tout ce que le compte contient ; photos : la liste (nom de fichier, légende, taille), chaque fichier se lit ensuite avec getPhoto */
+  async exportData(){const data=await rpc(()=>{const u=me(),ds=Object.values(rd('dossiers',{})).filter(z=>z.ownerId===u.id),ids=new Set(ds.map(z=>z.id));
+    return{exporteLe:now(),compte:{email:u.email,creeLe:u.createdAt},dossiers:ds,liensDePartage:Object.values(rd('links',{})).filter(l=>ids.has(l.dossierId))}});
+   data.photos=[];
+   for(const z of data.dossiers){if(!z.photos)continue;(await pall(z.id)).forEach((r,i)=>data.photos.push({dossier:z.id,id:r.id,nom:`photo_${z.id.slice(0,8)}_${i+1}.jpg`,legende:r.cap||'',taille:r.size,largeur:r.w||0,hauteur:r.h||0,ajouteeLe:r.createdAt}))}
+   return data},
   listDossiers(){return rpc(()=>{const u=me();return Object.values(rd('dossiers',{})).filter(z=>z.ownerId===u.id||z.guestId===u.id).map(z=>out(z,u))})},
   getDossier(id){return rpc(()=>{const u=me(),z=rd('dossiers',{})[id];if(!z||(z.ownerId!==u.id&&z.guestId!==u.id))throw E('introuvable','Dossier introuvable.');return out(z,u)})},
-  /* Crée ou met à jour un dossier {id, constat, decl, contest, photos, sentAt} ; l'identifiant vient de l'appli (uuid) */
+  /* Crée ou met à jour un dossier {id, constat, decl, contest, sentAt} ; l'identifiant vient de l'appli (uuid).
+     Le nombre de photos (photos) est tenu à jour par uploadPhoto et deletePhoto, pas par l'appli. */
   saveDossier(dz){return rpc(()=>{const u=me(),ds=rd('dossiers',{}),t=now(),ex=dz&&dz.id&&ds[dz.id],old=ex&&ex.ownerId===u.id?ex:null;
    const z={id:old?old.id:(dz.id&&!ex?dz.id:newId()),ownerId:u.id,createdAt:old?old.createdAt:t,updatedAt:t,constat:dz.constat||null,decl:dz.decl||null,contest:dz.contest||null,
-    photos:+dz.photos||0,sentAt:dz.sentAt||null,partBAt:old?old.partBAt||null:null,partBParty:old?old.partBParty||null:null,guestId:old?old.guestId||null:null};
+    photos:old?old.photos||0:0,sentAt:dz.sentAt||null,partBAt:old?old.partBAt||null:null,partBParty:old?old.partBParty||null:null,guestId:old?old.guestId||null:null};
    ds[z.id]=z;wr('dossiers',ds);return out(z,u)})},
-  /* Copie dans le compte les documents déjà sur le téléphone (appelé seulement si la case est cochée) */
+  /* Ajoute une photo (Blob JPEG déjà réduit par l'appli) au dossier → {id, cap, size, w, h, t, createdAt} ; 10 par dossier au plus */
+  async uploadPhoto(dossierId,blob,cap,meta){await wait();const u=me();dzOf(dossierId);
+   if(!(blob instanceof Blob)||blob.type!=='image/jpeg')throw E('photo','Cette photo n’est pas au bon format.');
+   if(blob.size>MAXOCT)throw E('photo','Cette photo est trop lourde pour être gardée dans le compte.');
+   const n=(await pall(dossierId)).length;if(n>=MAXPH)throw E('limite',`Le compte garde ${MAXPH} photos par dossier au maximum.`);
+   const m=meta||{},id=newId(),r={key:dossierId+'/'+id,id,dossierId,ownerId:u.id,blob,cap:String(cap||'').slice(0,200),size:blob.size,w:+m.w||0,h:+m.h||0,t:+m.t||Date.now(),createdAt:now()};
+   await pstore('readwrite',s=>s.put(r));pcount(dossierId,n+1);return pmeta(r)},
+  async setPhotoCaption(dossierId,photoId,cap){await wait(100);dzOf(dossierId);const k=dossierId+'/'+pid(photoId),r=await pstore('readonly',s=>s.get(k));
+   if(!r)throw E('introuvable','Photo introuvable.');r.cap=String(cap||'').slice(0,200);await pstore('readwrite',s=>s.put(r));return pmeta(r)},
+  /* Liste des photos d'un dossier (propriétaire, ou partie invitée qui a un compte), dans l'ordre de prise de vue */
+  async listPhotos(dossierId){await wait();dzOf(dossierId,true);return(await pall(dossierId)).map(pmeta)},
+  /* Le fichier d'une photo → Blob */
+  async getPhoto(dossierId,photoId){await wait(100);dzOf(dossierId,true);const r=await pstore('readonly',s=>s.get(dossierId+'/'+pid(photoId)));
+   if(!r)throw E('introuvable','Photo introuvable.');return r.blob},
+  async deletePhoto(dossierId,photoId){await wait(100);dzOf(dossierId);await pstore('readwrite',s=>s.delete(dossierId+'/'+pid(photoId)));
+   pcount(dossierId,(await pall(dossierId)).length);return true},
+  /* Copie dans le compte les documents déjà sur le téléphone (appelé seulement si la case est cochée) ; leurs photos suivent (voir Acc.push) */
   async importLocal(){const r=[];for(const it of localDossiers())r.push(await api.saveDossier(it));return r},
   /* Un seul lien actif par dossier : en créer un nouveau annule le précédent → {token,url,expiresAt,role,party} */
   createShareLink(dossierId,role){return rpc(()=>{const u=me(),z=rd('dossiers',{})[dossierId];if(!z||z.ownerId!==u.id)throw E('introuvable','Dossier introuvable.');
@@ -1230,12 +1293,18 @@ const Cloud=(()=>{
    wr('links',ls);return{token:tok,url:BASE+tok,expiresAt:ls[tok].expiresAt,createdAt:t,role:ls[tok].role,party}})},
   revokeShareLink(token){return rpc(()=>{const u=me(),ls=rd('links',{}),l=ls[token];if(!l||l.ownerId!==u.id)throw E('introuvable','Ce lien n’existe pas.');
    if(!l.revokedAt)l.revokedAt=now();wr('links',ls);return true})},
-  /* Sans compte : ce que la partie invitée a le droit de voir, ou une erreur (code introuvable, annule, utilise, expire) */
-  openShareLink(token){return rpc(()=>{const l=link(token),z=rd('dossiers',{})[l.dossierId];if(!z||!z.constat)throw E('introuvable','Ce lien n’existe pas.');
+  /* Sans compte : ce que la partie invitée a le droit de voir, ou une erreur (code introuvable, annule, utilise, expire).
+     photos : la liste [{id, cap, size, w, h}] des photos du sinistre, à lire une par une avec getSharedPhoto */
+  async openShareLink(token){const info=await rpc(()=>{const l=link(token),z=rd('dossiers',{})[l.dossierId];if(!z||!z.constat)throw E('introuvable','Ce lien n’existe pas.');
    const c=z.constat,P=l.party,O=P==='B'?'A':'B',g=k=>c[O+'_'+k]||'';
    return{role:l.role,party:P,expiresAt:l.expiresAt,adresse:c.adresse||'',date:c.date||'',declarant:g('nom'),
     resume:{partie:O,qual:g('qual'),occ:g('occ'),etage:g('etage'),bat:g('bat'),assureur:g('assureur'),contrat:g('contrat')},
-    prefill:Object.fromEntries(Object.entries(c).filter(([k])=>k.startsWith(P+'_')))}})},
+    prefill:Object.fromEntries(Object.entries(c).filter(([k])=>k.startsWith(P+'_')))}});
+   const l=link(token);let ph=[];try{ph=(await pall(l.dossierId)).map(pmeta)}catch(e){}
+   return{...info,photos:ph}},
+  /* Sans compte : le fichier d'une photo du dossier, en lecture seule, tant que le jeton est actif → Blob */
+  async getSharedPhoto(token,photoId){await wait(100);const l=link(token),r=await pstore('readonly',s=>s.get(l.dossierId+'/'+pid(photoId)));
+   if(!r)throw E('introuvable','Photo introuvable.');return r.blob},
   /* Sans compte : enregistre la partie invitée et sa signature {sig,sigt}, le lien ne peut plus servir → {signedAt, constat complet pour le PDF final} */
   submitPartB(token,data,signature){return rpc(()=>{const l=link(token),ds=rd('dossiers',{}),z=ds[l.dossierId];if(!z||!z.constat)throw E('introuvable','Ce lien n’existe pas.');
    if(!signature||!signature.sig)throw E('signature','Signez avant d’envoyer.');
@@ -1278,7 +1347,7 @@ async function withDoc(m,data,ph,fn){
 
 /* ---------- Écrans : connexion, historique, détail, partage, côté voisin, mon compte ---------- */
 const Acc=(()=>{
- let user,list=null,DZ=null,scr='',after=null,origin='home',kind='signup',em='',wantImp=true,info=null,tok=null,fin=null,shareFrom='detail',localDz=null,flash='',chain=Promise.resolve();
+ let user,list=null,DZ=null,expPh=[],sph=[],sphEnd=false,sphP=Promise.resolve(),scr='',after=null,origin='home',kind='signup',em='',wantImp=true,info=null,tok=null,fin=null,shareFrom='detail',localDz=null,flash='',chain=Promise.resolve();
  const C=()=>$('#cloud');
  const frT=t=>t?new Date(t).toLocaleDateString('fr-FR'):'';
  const frL=iso=>{if(!iso)return'';const t=new Date(iso+'T12:00:00');return isNaN(t)?'':t.toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'})};
@@ -1314,6 +1383,46 @@ const Acc=(()=>{
   if(z.decl)p.push(p.length?'déclaration':'Déclaration');if(z.contest)p.push(p.length?'contestation':'Contestation');return p.join(' · ')}
  const isLocal=z=>!!z&&docData('constat')._dossier===z.id;
  const localPhotos=async()=>{try{return((await IDBS.constat.all())||[]).sort((x,y)=>x.t-y.t)}catch(e){return[]}};
+ /* Adresses d'affichage des photos lues dans le compte ou par le lien (libérées en changeant d'écran) */
+ const vurls=new Map(),vurl=p=>{if(!vurls.has(p.id))vurls.set(p.id,URL.createObjectURL(p.blob));return vurls.get(p.id)},freeUrls=()=>{vurls.forEach(u=>URL.revokeObjectURL(u));vurls.clear()};
+ const ko=n=>n>=1e6?(n/1e6).toFixed(1).replace('.',',')+' Mo':Math.max(1,Math.round(n/1000))+' ko';
+ const nph=n=>n+' photo'+(n>1?'s':'');
+ /* Photos d'un dossier lues dans le compte, au format attendu par l'annexe du PDF */
+ async function cloudPhotos(id){const r=[];for(const m of await Cloud.listPhotos(id))r.push({id:m.id,cap:m.cap,w:m.w,h:m.h,t:m.t,blob:await Cloud.getPhoto(id,m.id)});return r}
+ /* Photos pour le PDF d'un dossier : celles du téléphone si le constat y est ouvert, sinon celles du compte */
+ async function dzPhotos(z){if(isLocal(z)){const l=await localPhotos();if(l.length)return l}return z.photos?cloudPhotos(z.id):[]}
+
+ /* ----- Photos du constat : copie dans le compte -----
+    Chaque photo locale garde l'identifiant de sa copie (rid), le dossier où elle se trouve (rdz) et la légende envoyée (rcap) : pas de doublon.
+    Rien n'est jamais supprimé du compte ici ; la suppression passe par photoGone (bouton « Supprimer » d'une photo). */
+ async function mark(p,o){
+  const live=KEY===DOCKEYS.constat&&mode==='constat'?photos.find(x=>x.id===p.id):null;
+  const cur=((await IDBS.constat.all())||[]).find(x=>x.id===p.id);if(!cur)return false;
+  const rec=live||cur;Object.assign(rec,o);await IDBS.constat.put(rec);return true}
+ async function syncPhotos(id){
+  const loc=await localPhotos();
+  if(loc.every(p=>p.rdz===id&&p.rid&&p.rcap===(p.cap||'')))return{skipped:0,changed:false};
+  const rem=new Map((await Cloud.listPhotos(id)).map(r=>[r.id,r]));let n=rem.size,skipped=0,changed=false;
+  for(const p of loc){const cap=p.cap||'';
+   if(p.rdz===id&&p.rid&&rem.has(p.rid)){if(cap!==rem.get(p.rid).cap){await Cloud.setPhotoCaption(id,p.rid,cap);changed=true}if(p.rcap!==cap)await mark(p,{rcap:cap});continue}
+   if(n>=Cloud.maxPhotos){skipped++;continue}
+   const r=await Cloud.uploadPhoto(id,p.blob,cap,{w:p.w,h:p.h,t:p.t});n++;changed=true;
+   /* Photo supprimée du téléphone pendant l'envoi : on la retire aussi du compte */
+   if(!(await mark(p,{rid:r.id,rdz:id,rcap:cap}))){await Cloud.deletePhoto(id,r.id);n--}}
+  return{skipped,changed};
+ }
+ /* Photo supprimée sur le téléphone : supprimée aussi du compte */
+ function photoGone(p){if(!user||!p||!p.rid||!p.rdz)return;const id=p.rdz;
+  enqueue(async()=>{await Cloud.deletePhoto(id,p.rid);list=null;if(localDz&&localDz.id===id)localDz={...localDz,photos:Math.max(0,(localDz.photos||1)-1)}}).catch(()=>{})}
+ /* Reprise d'un dossier : ses photos reviennent du compte sur ce téléphone (fresh : la base locale est d'abord vidée) */
+ async function pullPhotos(z,fresh){
+  if(fresh)try{await IDBS.constat.clear()}catch(e){}
+  if(!z.photos)return;
+  const have=new Set((await localPhotos()).filter(p=>p.rdz===z.id).map(p=>p.rid));
+  for(const m of await Cloud.listPhotos(z.id)){if(have.has(m.id))continue;
+   const blob=await Cloud.getPhoto(z.id,m.id),cap=m.cap||'';
+   await IDBS.constat.put({id:m.id,blob,w:m.w,h:m.h,cap,t:m.t||Date.parse(m.createdAt),rid:m.id,rdz:z.id,rcap:cap})}
+ }
 
  /* ----- Enregistrement dans le compte d'un document gardé sur le téléphone -----
     force : aussi quand le document n'est pas encore dans le compte (fin du constat). Sinon, seulement s'il y est déjà. */
@@ -1325,7 +1434,6 @@ const Acc=(()=>{
   let z=null;try{z=await Cloud.getDossier(id)}catch(e){if(e.code!=='introuvable')throw e}
   if(z&&!z.mine)z=null;
   if(!z&&!force)return null;
-  let n=z?z.photos||0:0;if(m==='constat')try{n=((await IDBS.constat.all())||[]).length}catch(e){}
   const tgt=liveDoc(m);if(tgt._dossier!==id)return null;
   /* L'autre partie a signé depuis le lien : sa partie est reprise sur ce téléphone avant tout nouvel enregistrement */
   let pulled=false;
@@ -1334,10 +1442,14 @@ const Acc=(()=>{
    for(const k in z.constat)if(k.startsWith(P+'_')||k==='sig'+P||k==='sigt'+P)tgt[k]=z.constat[k];
    tgt._pbAt=z.partBAt;putDoc(m,tgt);pulled=true}
   const snap=strip(tgt);
-  if(z&&JSON.stringify(z[m]||null)===JSON.stringify(snap)&&(z.photos||0)===n)return{dz:z,pulled};
-  const saved=await Cloud.saveDossier({...(z||{}),id,[m]:snap,photos:n});list=null;
-  if(saved.id!==id){const t2=liveDoc(m);if(t2._dossier===id){t2._dossier=saved.id;putDoc(m,t2)}}
-  return{dz:saved,pulled};
+  let saved=z;
+  if(!(z&&JSON.stringify(z[m]||null)===JSON.stringify(snap))){
+   saved=await Cloud.saveDossier({...(z||{}),id,[m]:snap});list=null;
+   if(saved.id!==id){const t2=liveDoc(m);if(t2._dossier===id){t2._dossier=saved.id;putDoc(m,t2)}}}
+  /* Les photos du constat suivent le dossier ; une photo qui ne part pas n'empêche pas l'enregistrement du reste */
+  let skipped=0,phErr=null;
+  if(m==='constat')try{const r=await syncPhotos(saved.id);skipped=r.skipped;if(r.changed){saved=await Cloud.getDossier(saved.id);list=null}}catch(e){phErr=e}
+  return{dz:saved,pulled,skipped,phErr};
  }
  function unstamp(){for(const m in DOCKEYS){const o=liveDoc(m);if(o._dossier||o._pbAt){delete o._dossier;delete o._pbAt;putDoc(m,o)}}localDz=null;list=null}
 
@@ -1363,7 +1475,7 @@ const Acc=(()=>{
   if(!(d.sigA&&d.sigB))h+=user&&s&&s.status==='actif'
    ?`<div class="card yel"><h3>En attente ${roleDu(s.role)}</h3><p>Lien envoyé le ${frT(s.createdAt)}, valable jusqu’au ${frT(s.expiresAt)}.</p><button class="btn pri" type="button" data-acc="rshare">Voir le lien de partage</button></div>`
    :`<div class="card yel"><h3>Faire remplir l’autre partie</h3><p>Envoyez un lien au voisin ou au syndic. Il remplit sa partie et signe depuis son téléphone, sans installer l’appli.</p><button class="btn pri" type="button" data-acc="rshare">Créer le lien de partage</button></div>`;
-  if(user)h+=`<div class="card"><h3>Constat gardé dans votre compte</h3><p>${esc(user.email)}</p><button class="btn" type="button" data-acc="hist">Mes dégâts des eaux</button><div id="accsync"></div></div>`;
+  if(user)h+=`<div class="card"><h3>Constat gardé dans votre compte</h3><p>${esc(user.email)}${z&&z.photos?' · '+nph(z.photos):''}</p><button class="btn" type="button" data-acc="hist">Mes dégâts des eaux</button><div id="accsync"></div></div>`;
   else if(!noCompte())h+=`<div class="card"><h3>Garder ce constat dans un compte</h3><p>Retrouvez ce constat, vos déclarations et vos prochains dégâts des eaux sur n’importe quel téléphone. C’est gratuit et facultatif.</p>
    <div class="stack"><button class="btn pri" type="button" data-acc="rsignup">Créer mon compte</button><button class="btn" type="button" data-acc="rno">Non merci, garder sur ce téléphone</button></div></div>`;
   return h;
@@ -1374,6 +1486,8 @@ const Acc=(()=>{
   if(!user||!DOCKEYS[mode])return;const m=mode;
   enqueue(()=>push(m,true)).then(r=>{if(!r)return;if(m==='constat')localDz=r.dz;
    if(r.pulled&&view==='form'&&mode===m&&STEPS[cur].recap)keepScroll();else drawCards();
+   if(r.phErr)say('Les photos n’ont pas pu être copiées dans le compte pour l’instant : '+emsg(r.phErr),1,'accsync');
+   else if(r.skipped)say(`Votre compte garde ${Cloud.maxPhotos} photos par dossier : ${r.skipped>1?'les '+r.skipped+' dernières restent':'la dernière reste'} seulement sur ce téléphone.`,0,'accsync');
   }).catch(e=>say('Enregistrement dans le compte impossible pour l’instant : '+emsg(e),1,'accsync'));
  }
  function sent(){if(!user||mode!=='constat'||!d._dossier)return;const id=d._dossier;
@@ -1453,7 +1567,7 @@ const Acc=(()=>{
   if(z.decl)docs+=row('Déclaration à l’assureur',pdf('decl'));
   else if(z.mine&&z.constat&&loc)docs+=row('Déclaration à l’assureur','<button type="button" class="link" data-acc="todecl">Préparer</button>');
   if(z.contest)docs+=row('Contestation de l’indemnisation',pdf('contest'));
-  if(z.photos)docs+=row(`Photos (${z.photos})`,loc?'<button type="button" class="link" data-acc="photos">Voir</button>':'<span class="small" style="margin:0">sur le téléphone d’origine</span>');
+  if(z.photos)docs+=row(`Photos (${z.photos})`,'<button type="button" class="link" data-acc="photos">Voir</button>');
   let next='';
   if(z.mine&&z.constat&&c.date){const lim=ouvres(c.date,5),late=lim<today;
    next=z.sentAt?`<div class="card"><h3>Prochaine étape</h3><p>Constat envoyé à votre assureur le ${frT(z.sentAt)}. Gardez une copie du PDF.</p><button class="btn" type="button" data-acc="send">Renvoyer à mon assureur</button><div id="accout3"></div></div>`
@@ -1463,32 +1577,42 @@ const Acc=(()=>{
    <div class="card"><h3>Documents</h3>${docs||'<p>Aucun document.</p>'}<div id="accout2"></div></div>${next}`;
  }
  async function pdf(m,b){const z=DZ;if(!z||!z[m])return;
-  try{const ph=m==='constat'&&isLocal(z)?await localPhotos():[];
-   say(await busy(b,'…',()=>withDoc(m,z[m],ph,async()=>{const bytes=await buildPDF();
+  try{say(await busy(b,'…',async()=>{const ph=m==='constat'?await dzPhotos(z):[];return withDoc(m,z[m],ph,async()=>{const bytes=await buildPDF();
     if(NATIVE){try{await nativeSave(bytes);return M().saved(fname())}catch(x){await nativeSend(bytes,{...M().mail(),to:''},'Enregistrer le PDF');return'Choisissez où enregistrer le PDF (Fichiers, Drive…).'}}
-    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})),0,'accout2');
+    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})}),0,'accout2');
    try{Stats.ev('document_pdf',{document:m})}catch(x){}}
   catch(e){say(cancelled(e)?'Annulé.':'Impossible de créer le PDF : '+emsg(e),!cancelled(e),'accout2')}
  }
  async function send(b){const z=DZ;if(!z||!z.constat)return;
-  try{const ph=isLocal(z)?await localPhotos():[];
-   const msg=await busy(b,'Génération…',()=>withDoc('constat',z.constat,ph,async()=>sendMail(await buildPDF(),M().mail(),'Envoyer le constat')));
+  try{const msg=await busy(b,'Génération…',async()=>{const ph=await dzPhotos(z);return withDoc('constat',z.constat,ph,async()=>sendMail(await buildPDF(),M().mail(),'Envoyer le constat'))});
    DZ=await Cloud.saveDossier({...z,sentAt:new Date().toISOString()});list=null;if(localDz&&localDz.id===DZ.id)localDz=DZ;
    if(scr==='detail'){drawDetail();say(msg,0,'accout3')}}
   catch(e){say(cancelled(e)?'Envoi annulé.':'Impossible de terminer : '+emsg(e),!cancelled(e),'accout3')}
  }
  /* Reprendre un dossier du compte sur ce téléphone (le constat en cours, s'il est différent, est d'abord rangé dans le compte) */
  async function resume(step,sure){
-  const z=DZ;if(!z||!z.constat)return;const other=constatStarted()&&docData('constat')._dossier!==z.id;
-  if(other&&!sure){say(`Un autre constat est en cours sur ce téléphone. Il sera rangé dans votre compte, mais ses photos resteront à ajouter de nouveau.<div class="actions"><button class="btn pri" type="button" data-acc="resume2" data-step="${step==null?'':step}">Continuer</button><button class="btn" type="button" data-acc="nothing">Annuler</button></div>`);return}
+  const z=DZ;if(!z||!z.constat)return;const other=constatStarted()&&docData('constat')._dossier!==z.id,here=isLocal(z);
+  if(other&&!sure){say(`Un autre constat est en cours sur ce téléphone. Il sera rangé dans votre compte avec ses photos, et vous pourrez le reprendre plus tard.<div class="actions"><button class="btn pri" type="button" data-acc="resume2" data-step="${step==null?'':step}">Continuer</button><button class="btn" type="button" data-acc="nothing">Annuler</button></div>`);return}
   try{await enqueue(async()=>{
-    if(other){await push('constat',true);try{await IDBS.constat.clear()}catch(e){}}
+    if(other){const r=await push('constat',true);if(r&&r.phErr)throw r.phErr}
     for(const m of['decl','contest']){const o=docData(m);
      if(o._dossier&&o._dossier!==z.id){await push(m);lsSet(DOCKEYS[m],JSON.stringify(z[m]?{...z[m],_dossier:z.id}:{}))}
      else if(z[m]&&!docStarted(m))lsSet(DOCKEYS[m],JSON.stringify({...z[m],_dossier:z.id}))}
     const c={...z.constat,_dossier:z.id,_step:step==null?CSTEPS.length-1:step};if(z.partBAt)c._pbAt=z.partBAt;
-    lsSet(DOCKEYS.constat,JSON.stringify(c));localDz=z});
+    lsSet(DOCKEYS.constat,JSON.stringify(c));localDz=z;
+    await pullPhotos(z,!here)});
    openForm('constat')}catch(e){say(emsg(e),1)}
+ }
+
+ /* ----- Photos d'un dossier, lues dans le compte (depuis n'importe quel appareil connecté) ----- */
+ async function photosScr(){
+  const z=DZ;if(!z)return;freeUrls();
+  page('photos',`Photos (${z.photos||0})`,adr(z),top('Retour','back')+'<div id="accph"><p class="small">Chargement des photos…</p></div><div id="accout"></div>');
+  try{const ph=await cloudPhotos(z.id);if(scr!=='photos'||DZ!==z)return;
+   $('#ttl').textContent=`Photos (${ph.length})`;
+   $('#accph').innerHTML=(ph.length?`<div class="phgrid">${ph.map((p,i)=>`<figure class="ph"><img src="${vurl(p)}" alt="Photo ${i+1}"><figcaption class="ro">${esc(p.cap||'Photo '+(i+1))}</figcaption></figure>`).join('')}</div>`:'<div class="card"><p>Aucune photo dans ce dossier.</p></div>')
+    +(z.mine&&z.constat?'<button class="btn" type="button" data-acc="phedit">Ajouter ou retirer des photos</button>':'')}
+  catch(e){if(scr==='photos'){$('#accph').innerHTML='';say(emsg(e),1)}}
  }
 
  /* ----- Lien de partage ----- */
@@ -1526,30 +1650,57 @@ const Acc=(()=>{
  /* ----- Mon compte ----- */
  async function compte(){
   if(!user){login('login');return}
-  page('compte','Mon compte',user.email,top('Mes dégâts des eaux','hist')+`<div class="card"><h3>Mes données</h3><p id="accnb">…</p>
+  freeUrls();page('compte','Mon compte',user.email,top('Mes dégâts des eaux','hist')+`<div class="card"><h3>Mes données</h3><p id="accnb">…</p>
    <div class="stack"><button class="btn" type="button" data-acc="export">Télécharger toutes mes données</button><button class="btn" type="button" data-acc="chemail">Changer d’adresse e-mail</button><button class="btn" type="button" data-acc="logout">Se déconnecter</button></div><div id="accout"></div></div>
    <div class="card"><h3>Supprimer mon compte</h3><p>Vos constats, déclarations et photos seront effacés du serveur sous 30 jours. Pensez à télécharger vos PDF avant.</p>
    <div id="accdel"><button class="btn danger" type="button" data-acc="del">Supprimer mon compte</button></div><div id="accout2"></div>
    <p class="small">Aussi possible sans l’appli : <a href="https://vitfix.fr/supprimer-mon-compte" target="_blank" rel="noopener">vitfix.fr/supprimer-mon-compte</a></p></div>`);
   try{if(!list)list=await Cloud.listDossiers();const own=list.filter(z=>z.mine),n=own.length,k=own.reduce((t,z)=>t+!!z.constat+!!z.decl+!!z.contest,0);
-   const el=$('#accnb');if(el)el.textContent=`${n} dégât${n>1?'s':''} des eaux, ${k} document${k>1?'s':''}.`}catch(e){}
+   const f=own.reduce((t,z)=>t+(z.photos||0),0);
+   const el=$('#accnb');if(el)el.textContent=`${n} dégât${n>1?'s':''} des eaux, ${k} document${k>1?'s':''}${f?', '+nph(f):''}.`}catch(e){}
  }
  async function exportAll(b){
   try{const data=await busy(b,'Préparation…',()=>Cloud.exportData()),txt=JSON.stringify(data,null,1),name='mes-donnees-vitfix-'+today+'.json';
-   if(NATIVE&&CAP.Plugins.Filesystem){try{await CAP.Plugins.Filesystem.writeFile({path:'Constats/'+name,data:txt,directory:'DOCUMENTS',encoding:'utf8',recursive:true});say('Fichier enregistré dans Documents › Constats : '+esc(name)+'.');return}
-    catch(x){const w=await CAP.Plugins.Filesystem.writeFile({path:name,data:txt,directory:'CACHE',encoding:'utf8'});await CAP.Plugins.Share.share({title:name,files:[w.uri],dialogTitle:'Enregistrer mes données'});say('Choisissez où enregistrer le fichier.');return}}
+   expPh=data.photos||[];const more=expPh.length?` Il liste aussi vos ${nph(expPh.length)} (nom, légende, taille). <button type="button" class="link" data-acc="exphotos">Télécharger les photos</button>`:'';
+   if(NATIVE&&CAP.Plugins.Filesystem){try{await CAP.Plugins.Filesystem.writeFile({path:'Constats/'+name,data:txt,directory:'DOCUMENTS',encoding:'utf8',recursive:true});say('Fichier enregistré dans Documents › Constats : '+esc(name)+'.'+more);return}
+    catch(x){const w=await CAP.Plugins.Filesystem.writeFile({path:name,data:txt,directory:'CACHE',encoding:'utf8'});await CAP.Plugins.Share.share({title:name,files:[w.uri],dialogTitle:'Enregistrer mes données'});say('Choisissez où enregistrer le fichier.'+more);return}}
    const url=URL.createObjectURL(new Blob([txt],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-   say('Fichier « '+esc(name)+' » téléchargé : il contient vos dossiers (constats, déclarations, signatures) et vos liens de partage.')}
+   say('Fichier « '+esc(name)+' » téléchargé : il contient vos dossiers (constats, déclarations, signatures) et vos liens de partage.'+more)}
+  catch(e){say(cancelled(e)?'Annulé.':emsg(e),!cancelled(e))}
+ }
+ /* Les photos du compte, une par une : un lien de téléchargement par photo (dans l'appli Android : enregistrées dans Documents › Constats) */
+ async function exPhotos(b){
+  try{const rows=[],nat=NATIVE&&CAP.Plugins.Filesystem;
+   await busy(b,'Préparation…',async()=>{for(const p of expPh){const blob=await Cloud.getPhoto(p.dossier,p.id);
+    if(nat){const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=()=>rej(r.error);r.readAsDataURL(blob)});
+     await CAP.Plugins.Filesystem.writeFile({path:'Constats/'+p.nom,data,directory:'DOCUMENTS',recursive:true});rows.push(`<span>${esc(p.nom)}</span>`)}
+    else rows.push(`<span><a href="${vurl({id:'x'+p.id,blob})}" download="${esc(p.nom)}">${esc(p.nom)}</a>${p.legende?' — '+esc(p.legende):''} (${ko(p.taille)})</span>`)}});
+   say((nat?'Photos enregistrées dans Documents › Constats :':'Touchez une photo pour la télécharger :')+`<div class="phlinks">${rows.join('')}</div>`)}
   catch(e){say(cancelled(e)?'Annulé.':emsg(e),!cancelled(e))}
  }
 
  /* ----- Côté voisin : ouverture du lien, partie à remplir, envoi ----- */
  const partDraft=()=>{try{return JSON.parse(lsGet('constatDDE_part')||'{}')||{}}catch(e){return{}}};
  async function openLink(t){
-  tok=t;info=null;page('load','Constat dégât des eaux','Ouverture du lien…','<div class="card"><p>Ouverture du constat…</p></div>');
+  tok=t;info=null;sph=[];sphEnd=false;freeUrls();page('load','Constat dégât des eaux','Ouverture du lien…','<div class="card"><p>Ouverture du constat…</p></div>');
   const dr=partDraft();if(dr._token===t&&dr._done&&dr._final){doneScr(dr._final);return}
-  try{info=await Cloud.openShareLink(t);if(tok===t)landing()}catch(e){if(tok===t)errScr(e)}
+  try{info=await Cloud.openShareLink(t);if(tok===t){sphP=loadShared(t,info.photos||[]);landing()}}catch(e){if(tok===t)errScr(e)}
  }
+ /* Photos du sinistre montrées à la partie invitée (lecture seule) : lues par le jeton, gardées sur son appareil pour son PDF final */
+ async function loadShared(t,l){
+  try{await PIDB.clear()}catch(e){}
+  for(const m of l){if(tok!==t)return;
+   try{const p={id:m.id,blob:await Cloud.getSharedPhoto(t,m.id),cap:m.cap||'',w:m.w,h:m.h,t:m.t,tok:t};if(tok!==t)return;
+    sph.push(p);try{await PIDB.put(p)}catch(e){}drawThumbs()}catch(e){}}
+  if(tok===t){sphEnd=true;drawThumbs()}
+ }
+ function thumbs(){const n=(info&&info.photos||[]).length;if(!n)return'';
+  return `<p class="small" style="margin:12px 0 8px">${nph(n)} du sinistre${sph.length<n?(sphEnd?' : '+(n-sph.length)+' n’'+(n-sph.length>1?'ont':'a')+' pas pu être chargée'+(n-sph.length>1?'s':''):' (chargement…)'):''}</p>
+   <div class="thumbs">${sph.map((p,i)=>`<figure><a href="${vurl(p)}" target="_blank" rel="noopener"><img src="${vurl(p)}" alt="Photo ${i+1}${p.cap?' : '+esc(p.cap):''}"></a>${p.cap?`<figcaption>${esc(p.cap)}</figcaption>`:''}</figure>`).join('')}</div>`}
+ const drawThumbs=()=>{const el=document.getElementById('accthumbs');if(el&&scr==='voisin')el.innerHTML=thumbs()};
+ /* Photos pour le PDF final de la partie invitée (après rechargement de la page : celles gardées sur l'appareil) */
+ async function sharedPhotos(){await sphP.catch(()=>{});if(sph.length)return sph;
+  try{return((await PIDB.all())||[]).filter(p=>p.tok===tok).sort((x,y)=>x.t-y.t)}catch(e){return[]}}
  function landing(){
   if(!info){if(tok)openLink(tok);else home();return}
   const i=info,P=i.party,r=i.resume||{},O=r.partie||'A',nom=clean1(i.declarant)||(i.role==='syndic'?'Un occupant de l’immeuble':'Votre voisin'),a=clean1(i.adresse);
@@ -1558,7 +1709,7 @@ const Acc=(()=>{
   page('voisin','Constat dégât des eaux',i.role==='syndic'?'Un occupant de l’immeuble vous demande de remplir votre partie':'Un voisin vous demande de remplir votre partie',
    `<div class="card"><h3>${esc(nom)} vous a envoyé un constat</h3><p>Dégât des eaux${i.date?' du '+fr(i.date):''}${a?(/^\d/.test(a)?' au ':' — ')+esc(a):''}. Remplissez la partie ${P} et signez : chacun recevra le PDF final.</p>
    <button class="btn pri" type="button" data-acc="pfill">Voir et remplir ma partie</button><p class="small">Lien valable jusqu’au ${frT(i.expiresAt)}, pour une seule personne.</p></div>
-   <div class="card recap${O}"><h3><span class="tag ${O}">${O}</span>Partie de ${esc(clean1(i.declarant)||'l’autre personne')}</h3><p>${esc(res||'Informations non renseignées.')}</p></div>
+   <div class="card recap${O}"><h3><span class="tag ${O}">${O}</span>Partie de ${esc(clean1(i.declarant)||'l’autre personne')}</h3><p>${esc(res||'Informations non renseignées.')}</p><div id="accthumbs">${thumbs()}</div></div>
    <div class="card"><h3>Vos données</h3><p style="font-size:14px">Les informations que vous saisissez sont gardées par Vitfix sur un serveur en Europe, pour établir ce constat. Elles sont visibles par ${esc(clean1(i.declarant)||'la personne qui vous a envoyé le lien')} et vous seulement. <a href="${PRIVACY}" target="_blank" rel="noopener">En savoir plus</a></p>
    ${user?`<p class="small">Vous êtes connecté : ${esc(user.email)}. Ce constat sera aussi visible dans votre compte.</p>`:'<button class="btn" type="button" data-acc="vsignup">Créer un compte (facultatif)</button>'}</div>`);
  }
@@ -1580,6 +1731,7 @@ const Acc=(()=>{
   if(!d['sig'+P]){er(`Il manque votre signature. <button type="button" class="link" data-go="${STEPS.findIndex(x=>x.sign)}">Signer</button>`);return}
   const nb=$('#next');if(nb.disabled)return;nb.disabled=true;nb.textContent='Envoi…';
   try{const data={};for(const k in d)if(k.startsWith(P+'_'))data[k]=d[k];
+   await sphP.catch(()=>{});
    const r=await Cloud.submitPartB(d._token,data,{sig:d['sig'+P],sigt:d['sigt'+P]});
    if(mode==='part'){d._done=1;d._final=r.constat;save()}doneScr(r.constat)}
   catch(e){if(['expire','annule','utilise','introuvable'].includes(e.code))errScr(e);else er('Envoi impossible : '+emsg(e))}
@@ -1588,15 +1740,15 @@ const Acc=(()=>{
  function doneScr(c){
   fin={...c,mailto:''};const two=c.sigA&&c.sigB;
   page('done','Constat signé',two?'Signé par les deux parties':'Votre partie est signée',`<div class="card yel"><h3>Merci, votre partie est enregistrée</h3>
-   <p>${two?'Le constat est maintenant signé par les deux parties.':'Votre partie est signée ; l’autre partie n’a pas encore signé.'} Gardez le PDF et envoyez-le à votre assureur dans les 5 jours ouvrés.</p>
+   <p>${two?'Le constat est maintenant signé par les deux parties.':'Votre partie est signée ; l’autre partie n’a pas encore signé.'} Gardez le PDF et envoyez-le à votre assureur dans les 5 jours ouvrés.${sph.length?` Le PDF contient ${sph.length>1?'les '+sph.length+' photos':'la photo'} du sinistre en annexe.`:''}</p>
    <div class="stack"><button class="btn pri" type="button" data-acc="fpdf">Enregistrer le PDF</button><button class="btn" type="button" data-acc="fmail">Envoyer par mail (PDF joint)</button></div><div id="accout"></div></div>
    <button class="btn" type="button" data-acc="home">Aller à l’accueil de l’appli</button>`);
  }
  async function finDoc(b,mail){
-  try{say(await busy(b,'Génération…',()=>withDoc('constat',fin,[],async()=>{const bytes=await buildPDF();
+  try{say(await busy(b,'Génération…',async()=>{const ph=await sharedPhotos();return withDoc('constat',fin,ph,async()=>{const bytes=await buildPDF();
     if(mail)return sendMail(bytes,M().mail(),'Envoyer le constat');
     if(NATIVE){try{await nativeSave(bytes);return M().saved(fname())}catch(x){await nativeSend(bytes,{...M().mail(),to:''},'Enregistrer le PDF');return'Choisissez où enregistrer le PDF (Fichiers, Drive…).'}}
-    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})))}
+    const url=webDownload(bytes);return `PDF téléchargé : ${esc(fname())}. <a href="${url}" target="_blank" rel="noopener">Ouvrir le PDF</a>`})}))}
   catch(e){say(cancelled(e)?'Annulé.':'Impossible de terminer : '+emsg(e),!cancelled(e))}
  }
 
@@ -1605,6 +1757,7 @@ const Acc=(()=>{
   if(scr==='email')return origin==='form'?backToForm():origin==='voisin'?landing():home();
   if(scr==='code')return emailScr();
   if(scr==='detail'||scr==='compte')return hist();
+  if(scr==='photos')return detail(DZ.id);
   if(scr==='share')return shareFrom==='form'?backToForm():detail(DZ.id);
   return home();
  }
@@ -1626,7 +1779,8 @@ const Acc=(()=>{
    case'revoke2':await busy(b,'Annulation…',()=>Cloud.revokeShareLink(DZ.share.token));list=null;await detail(DZ.id);break;
    case'nothing':say('');break;
    case'resume':await resume();break;case'resume2':await busy(b,'Un instant…',()=>resume(b.dataset.step===''?null:+b.dataset.step,true));break;
-   case'photos':await resume(CSTEPS.findIndex(x=>x.photos));break;
+   case'photos':await photosScr();break;
+   case'phedit':await resume(CSTEPS.findIndex(x=>x.photos));break;case'exphotos':await exPhotos(b);break;
    case'todecl':openForm('decl');break;
    case'pdf':await pdf(b.dataset.m,b);break;case'send':await send(b);break;
    case'copy':await copy(b);break;case'nshare':await nshare();break;case'sharedone':await detail(DZ.id);break;
@@ -1650,7 +1804,7 @@ const Acc=(()=>{
   if(e.target.id==='accdelok'){const b=C().querySelector('[data-acc="del2"]');if(b)b.disabled=!e.target.checked}});
  async function init(){try{user=await Cloud.currentUser()}catch(e){user=null}homeCard();if(view==='form'){drawCards();if(STEPS[cur].recap)onRecap()}}
  const flush=()=>enqueue(()=>push('constat')).catch(()=>{});
- return {init,homeCard,cards,onRecap,sent,flush,openLink,landing,psend,back,get user(){return user}};
+ return {init,homeCard,cards,onRecap,sent,flush,photoGone,openLink,landing,psend,back,get user(){return user}};
 })();
 
 setMode(mode);
